@@ -1,0 +1,28 @@
+[project]
+name = "a23crypt"
+version = "0.1.0"
+description = "Dual-key cascaded AEAD encryption with per-record key diversification."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Aditya Dedhia", email = "adityadedhia@hey.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "cryptography>=47.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
