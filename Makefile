@@ -22,7 +22,7 @@ check: test build
 	@printf "\n\033[32m✓ tests pass, coverage 100%%, build clean\033[0m\n"
 
 release: check
-	@printf "\n\033[1mPublishing a23crypt 0.1.0 to PyPI\033[0m\n"
+	@printf "\n\033[1mPublishing a23crypt 0.2.0 to PyPI\033[0m\n"
 	@printf "Artifacts:\n"
 	@ls -1 dist/
 	@printf "\n"
@@ -39,7 +39,7 @@ release: check
 	@printf "\n\033[32m✓ Published. Verify at https://pypi.org/project/a23crypt/\033[0m\n"
 
 release-test: check
-	@printf "\n\033[1mPublishing a23crypt 0.1.0 to TestPyPI\033[0m\n"
+	@printf "\n\033[1mPublishing a23crypt 0.2.0 to TestPyPI\033[0m\n"
 	@printf "Artifacts:\n"
 	@ls -1 dist/
 	@printf "\n"

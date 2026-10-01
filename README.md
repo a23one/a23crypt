@@ -7,7 +7,7 @@ Dual-key cascaded AEAD encryption with per-record key diversification.
 - **Cascaded AEAD** — AES-256-GCM (inner) + ChaCha20Poly1305 (outer). Mixed hash families (SHA-512 / SHA3-512) for HKDF defend against a future weakening of either family.
 - **Streaming with constant memory** — encrypt/decrypt files, sockets, or any binary stream of arbitrary size.
 - **Optional zstd compression** — per-chunk, with built-in compression-bomb protection during decompression.
-- **100% test coverage** — 212 parametrised tests covering round-trip, truncation, tampering, frame-level attacks, DoS, and cryptographic isolation.
+- **100% test coverage** — 266 parametrised tests covering round-trip, truncation, tampering, frame-level attacks, DoS, and cryptographic isolation.
 
 ---
 
@@ -301,7 +301,7 @@ It is **not** a transport encryption protocol. For TLS-like in-flight encryption
 ## Testing
 
 ```bash
-uv run pytest                                    # 212 tests, ~0.4s
+uv run pytest                                    # 266 tests, ~0.5s
 uv run pytest --cov=a23crypt --cov-report=term   # 100% line coverage
 ```
 
@@ -312,6 +312,8 @@ Test suite is split by concern:
 - `tests/test_security.py` — truncation, bit-flip, header tamper, frame reorder/duplicate/substitute, frame-DoS.
 - `tests/test_validation.py` — input validation boundaries.
 - `tests/test_kdf.py` — HKDF determinism, independence, validation.
+- `tests/test_noise.py` — noise round-trip, known-answer vectors, vectorized/scalar parity.
+- `tests/test_streaming.py` — chunk and frame iterators, truncation and oversize limits.
 
 ---
 

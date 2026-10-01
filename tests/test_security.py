@@ -64,6 +64,7 @@ def _decrypt(
     server_key: bytes = SERVER_KEY,
     client_key: bytes = CLIENT_KEY,
 ) -> bytes:
+    """Call `decrypt` with the suite's default keys; tests override per call."""
     return decrypt(
         ct,
         server_key=server_key,

@@ -147,6 +147,39 @@ def test_stream_api_matches_bytes_api():
     assert out_dst.getvalue() == plaintext
 
 
+def test_cross_api_compatibility():
+    """Verify that ciphertexts produced by the stream API can be decrypted by the
+    bytes API, and vice-versa. This ensures the wire format is strictly identical."""
+    plaintext = b"cross api compatibility test " * 1000
+
+    # Stream encrypt -> Bytes decrypt
+    src = io.BytesIO(plaintext)
+    dst = io.BytesIO()
+    encrypt_stream(
+        src,
+        dst,
+        server_key=SERVER_KEY,
+        client_key=CLIENT_KEY,
+        record_key=RECORD_KEY,
+        compress_level=3,
+    )
+    ct_stream = dst.getvalue()
+    assert _decrypt(ct_stream) == plaintext
+
+    # Bytes encrypt -> Stream decrypt
+    ct_bytes = _encrypt(plaintext, compress_level=3)
+    out_src = io.BytesIO(ct_bytes)
+    out_dst = io.BytesIO()
+    decrypt_stream(
+        out_src,
+        out_dst,
+        server_key=SERVER_KEY,
+        client_key=CLIENT_KEY,
+        record_key=RECORD_KEY,
+    )
+    assert out_dst.getvalue() == plaintext
+
+
 def test_real_file_roundtrip(tmp_path):
     plaintext = bytes(i % 256 for i in range(2 * MAX_CHUNK_SIZE_BYTES + 123))
     src_path = tmp_path / "in.bin"
