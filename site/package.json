@@ -8,6 +8,6 @@
     "concepts": "bunx serve ."
   },
   "devDependencies": {
-    "wrangler": "^4"
+    "wrangler": "latest"
   }
 }
