@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a23crypt: a cross-section of one encrypted record</title>
+<meta name="description" content="Type a message and cut straight down through four layers of encryption, using the real bytes. a23crypt is dual-key cascaded AEAD for Python 3.14.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2216%22 height=%2232%22 fill=%22%231f35d6%22/%3E%3Crect x=%2216%22 width=%2216%22 height=%2232%22 fill=%22%23000%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --sky: #dce6ea;
+    --sky-ink: #24323c;
+    --soil: #4b3a2c;
+    --sand: #d7a84e;
+    --gravel: #8e8a80;
+    --slate: #3f5266;
+    --basalt: #1b1f24;
+    --amethyst: #b394f2;
+    --sheet: #ecede8;
+    --ink: #1b1f24;
+    --fell: "IM Fell English", "Iowan Old Style", Georgia, serif;
+    --sans: "Public Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    --gutter: clamp(20px, 5vw, 72px);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--sans); font-size: 17px; line-height: 1.55; color: var(--ink); background: var(--basalt); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--amethyst); outline-offset: 3px; }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  /* ---------- surface ---------- */
+  .surface { background: var(--sky); color: var(--sky-ink); position: relative; }
+  .topbar { display: flex; justify-content: space-between; align-items: baseline; padding: 22px var(--gutter); font-size: 15px; }
+  .topbar .brand { font-family: var(--fell); font-size: 26px; text-decoration: none; }
+  .topbar nav { display: flex; gap: 26px; }
+  .topbar nav a { text-decoration: none; }
+  .topbar nav a:hover { text-decoration: underline; }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+    gap: clamp(32px, 6vw, 96px);
+    padding: clamp(40px, 8vh, 96px) var(--gutter) 64px;
+    align-items: end;
+  }
+  .hero h1 {
+    font-family: var(--fell);
+    font-weight: 400;
+    font-size: clamp(52px, 7.6vw, 124px);
+    line-height: .94;
+    letter-spacing: -.01em;
+    margin: 0 0 28px;
+    max-width: 11.5ch;
+  }
+  .hero h1 i { font-style: italic; }
+  .hero .lede { max-width: 36em; font-size: 19px; margin: 0 0 30px; }
+  .bury { display: flex; gap: 0; max-width: 620px; border: 1.5px solid var(--sky-ink); background: #f4f8fa; }
+  .bury label { flex: 1; display: flex; flex-direction: column; padding: 10px 14px 8px; }
+  .bury label span { font-size: 13px; font-weight: 600; }
+  .bury input { font: inherit; font-size: 20px; border: 0; background: transparent; color: var(--ink); padding: 2px 0; }
+  .bury input:focus-visible { outline: none; }
+  .bury:focus-within { outline: 3px solid var(--slate); outline-offset: 2px; }
+  .bury button { font: inherit; font-weight: 700; border: 0; border-left: 1.5px solid var(--sky-ink); background: var(--sky-ink); color: var(--sky); padding: 0 22px; cursor: pointer; }
+  .bury button:hover { background: var(--slate); }
+
+  /* map legend doubles as the table of contents */
+  .legend { font-size: 14px; }
+  .legend h2 { font-family: var(--fell); font-style: italic; font-weight: 400; font-size: 22px; margin: 0 0 12px; }
+  .legend ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(36, 50, 60, .35); }
+  .legend li { border-bottom: 1px solid rgba(36, 50, 60, .35); }
+  .legend a { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; text-decoration: none; }
+  .legend a:hover .nm { text-decoration: underline; }
+  .legend .sw { height: 24px; border: 1px solid rgba(0, 0, 0, .35); }
+  .legend .nm { font-weight: 600; }
+  .legend .sz { font-family: var(--mono); font-size: 12px; }
+  .plate-note { margin: 14px 0 0; font-family: var(--fell); font-style: italic; font-size: 16px; }
+
+  /* ---------- strata ---------- */
+  .section-wrap { position: relative; }
+  .gauge {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--gutter);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s;
+    z-index: 5;
+  }
+  .gauge.on { opacity: 1; }
+  .gauge ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .gauge li { width: 14px; height: 2px; background: currentColor; opacity: .35; transition: width .3s, opacity .3s; }
+  .gauge li.on { width: 28px; opacity: 1; }
+
+  .stratum { position: relative; padding: 72px var(--gutter) 96px; }
+  .stratum::before { content: ""; position: absolute; inset: 0; background-image: var(--pattern); opacity: var(--pattern-opacity, 1); pointer-events: none; }
+  .stratum > * { position: relative; }
+  .contour { display: block; width: 100%; height: 56px; margin-bottom: -1px; }
+  .s-soil   { background: var(--soil);   color: #f1e9dc; }
+  .s-sand   { background: var(--sand);   color: #2b2116; }
+  .s-gravel { background: var(--gravel); color: #17160f; }
+  .s-slate  { background: var(--slate);  color: #e6ecf2; }
+  .s-basalt { background: var(--basalt); color: #e9ecef; }
+
+  .s-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 80px); max-width: 1320px; margin: 0 auto; }
+  .s-name { font-family: var(--fell); font-weight: 400; font-size: clamp(40px, 5vw, 76px); line-height: 1; margin: 0 0 6px; }
+  .s-name i { font-style: italic; }
+  .s-depth { font-family: var(--fell); font-style: italic; font-size: 19px; margin: 0 0 22px; opacity: .85; }
+  .s-text p { margin: 0 0 14px; max-width: 34em; }
+  .facts { margin: 22px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 15px; }
+  .facts dt { font-weight: 700; }
+  .facts dd { margin: 0; }
+
+  .core {
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.9;
+    letter-spacing: .02em;
+    word-break: break-all;
+    padding: 20px 22px;
+    border: 1.5px solid currentColor;
+    background: color-mix(in srgb, currentColor 7%, transparent);
+    align-self: start;
+  }
+  .core-cap { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; font-family: var(--sans); margin-bottom: 10px; letter-spacing: 0; }
+  .core-cap b { font-weight: 700; }
+  .core .b { display: inline-block; width: 2.6ch; }
+  .core .n { background: var(--basalt); color: var(--amethyst); outline: 1px solid var(--basalt); }
+  .core .tag { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  .fieldmap { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; font-size: 13px; margin-top: 4px; }
+  .fieldmap dt { font-family: var(--sans); font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+  .fieldmap dd { margin: 0; }
+  .toggle { margin-top: 14px; font-size: 14px; display: flex; gap: 10px; align-items: center; cursor: pointer; font-family: var(--sans); letter-spacing: 0; }
+  .toggle input { accent-color: var(--basalt); width: 18px; height: 18px; }
+
+  /* bedrock */
+  .vein-wrap { max-width: 1320px; margin: 0 auto; }
+  .vein {
+    margin: 30px 0 34px;
+    font-family: var(--fell);
+    font-size: clamp(40px, 6.4vw, 104px);
+    line-height: 1.02;
+    color: var(--amethyst);
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+  .vein.fresh { animation: surface 1.4s cubic-bezier(.2, .8, .2, 1); }
+  @keyframes surface { from { opacity: 0; letter-spacing: .12em; filter: blur(6px); } to { opacity: 1; letter-spacing: 0; filter: blur(0); } }
+  .vein-meta { display: flex; flex-wrap: wrap; gap: 14px 40px; font-size: 15px; color: #c6ccd3; }
+  .vein-meta b { color: #e9ecef; }
+  .btn {
+    font: inherit;
+    font-weight: 700;
+    font-size: 15px;
+    background: var(--amethyst);
+    color: var(--basalt);
+    border: 0;
+    padding: 12px 20px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn:hover { background: #cdb7fa; }
+  .btn.line { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
+  .py { margin-top: 26px; display: none; }
+  .py.open { display: block; }
+  .py pre { margin: 12px 0 0; padding: 18px; background: #0f1215; color: #d7dbe0; font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; border: 1px solid #3a4048; }
+
+  /* ---------- survey notes ---------- */
+  .notes { background: var(--sheet); color: var(--ink); padding: clamp(72px, 9vw, 130px) var(--gutter) 40px; }
+  .notes-inner { max-width: 1320px; margin: 0 auto; }
+  .notes h2 { font-family: var(--fell); font-weight: 400; font-size: clamp(40px, 5vw, 72px); line-height: 1; margin: 0 0 18px; }
+  .notes .intro { max-width: 40em; margin: 0 0 56px; font-size: 18px; }
+  .note-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 56px 40px; }
+  .note { border-top: 1.5px solid var(--ink); padding-top: 18px; }
+  .note h3 { font-family: var(--fell); font-style: italic; font-weight: 400; font-size: 28px; margin: 0 0 12px; line-height: 1.1; }
+  .note p { margin: 0 0 12px; max-width: 36em; }
+  .n-code { grid-column: span 7; }
+  .n-meas { grid-column: span 5; }
+  .n-limits { grid-column: span 12; }
+  .note pre { margin: 0; background: #fff; border: 1px solid #c9cbc2; padding: 18px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.7; overflow-x: auto; }
+  .note pre .k { color: var(--slate); font-weight: 500; }
+  .note pre .s { color: #8a5a12; }
+  .note pre .c { color: #7c8078; font-style: italic; }
+  .meas { display: grid; gap: 0; }
+  .meas div { display: grid; grid-template-columns: minmax(120px, auto) 1fr; gap: 18px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid #c9cbc2; }
+  .meas b { font-family: var(--fell); font-weight: 400; font-size: 44px; line-height: 1; }
+  .meas span { font-size: 15px; }
+  .limits { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px 40px; }
+  .limits b { display: block; font-weight: 700; margin-bottom: 2px; }
+  .limits p { margin: 0; font-size: 15px; }
+  .install-row { margin-top: 80px; display: flex; flex-wrap: wrap; gap: 24px 48px; align-items: center; justify-content: space-between; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); padding: 26px 0; }
+  .install-row p { margin: 0; font-family: var(--fell); font-size: clamp(28px, 3vw, 40px); line-height: 1.1; }
+  .install-row .actions { display: flex; gap: 14px; flex-wrap: wrap; }
+  .copy { font-family: var(--mono); font-size: 16px; background: var(--ink); color: var(--sheet); border: 0; padding: 13px 18px; cursor: copy; }
+  .install-row .btn.line { color: var(--ink); }
+  footer { padding: 26px 0 0; font-size: 14px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+  @media (max-width: 900px) {
+    .hero, .s-grid { grid-template-columns: 1fr; }
+    .hero h1 { max-width: none; font-size: 46px; }
+    .note-grid { grid-template-columns: 1fr; }
+    .n-code, .n-meas, .n-limits { grid-column: auto; }
+    .limits { grid-template-columns: 1fr; }
+    .gauge { display: none; }
+    .topbar nav { display: none; }
+    .bury { flex-direction: column; }
+    .bury button { border-left: 0; border-top: 1.5px solid var(--sky-ink); padding: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="surface">
+  <header class="topbar">
+    <a class="brand" href="#">a23crypt</a>
+    <nav aria-label="Primary">
+      <a href="#notes">Usage</a>
+      <a href="#limits">Limits</a>
+      <a href="https://github.com/a23one/a23crypt">GitHub</a>
+      <a href="https://pypi.org/project/a23crypt/">PyPI</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1>A cross&#8209;section of one encrypted record.</h1>
+      <p class="lede">Type a message. a23crypt seals it in your browser, then this page cuts straight down through the result, layer by layer, with the real bytes. Four layers down, your message is still there, and nobody holding fewer than two keys can reach it.</p>
+      <form class="bury" id="bury">
+        <label><span>Message to seal</span><input id="msg" value="The well is under the third oak." maxlength="160" autocomplete="off" spellcheck="false"></label>
+        <button type="submit">Seal it</button>
+      </form>
+    </div>
+    <aside class="legend" aria-labelledby="legend-h">
+      <h2 id="legend-h">Key to the section</h2>
+      <ol id="legend"></ol>
+      <p class="plate-note">Vertical scale: one byte to one byte.</p>
+    </aside>
+  </section>
+</div>
+
+<div class="section-wrap" id="section">
+  <div class="gauge" id="gauge" aria-hidden="true"><ol></ol></div>
+</div>
+
+<section class="notes" id="notes">
+  <div class="notes-inner">
+    <h2>Survey notes</h2>
+    <p class="intro">Everything above ran in this tab with a JavaScript port of the wire format. The library itself is Python: four keyword-only functions, two for records up to 1 MiB and two for streams of any size in 64 KiB frames.</p>
+    <div class="note-grid">
+      <div class="note n-code">
+        <h3>Sealing a record</h3>
+<pre><span class="k">import</span> os, a23crypt
+
+server_key = os.urandom(<span class="k">32</span>)   <span class="c"># kept by your server</span>
+client_key = os.urandom(<span class="k">32</span>)   <span class="c"># kept by your user</span>
+
+sealed = a23crypt.encrypt(
+    <span class="s">b"The well is under the third oak."</span>,
+    server_key=server_key,
+    client_key=client_key,
+    record_key=<span class="s">b"map-0417"</span>,
+    compress_level=<span class="k">3</span>,   <span class="c"># optional zstd</span>
+)
+
+a23crypt.decrypt(sealed, server_key=server_key,
+                 client_key=client_key, record_key=<span class="s">b"map-0417"</span>)
+
+<span class="c"># Files and sockets, in constant memory:</span>
+a23crypt.encrypt_stream(src, dst, server_key=..., client_key=..., record_key=...)</pre>
+      </div>
+      <div class="note n-meas">
+        <h3>Measurements</h3>
+        <div class="meas">
+          <div><b>266</b><span>tests covering truncation, bit flips, frame reordering and substitution, header tampering and compression bombs. They run in about half a second.</span></div>
+          <div><b>100%</b><span>line coverage.</span></div>
+          <div><b>255 MiB/s</b><span>encrypt and decrypt for large payloads on an Apple M4 Max in 0.2.0, up from 44 MiB/s. Reproduce it with <a href="https://github.com/a23one/a23crypt/blob/main/benchmarks/bench_noise.py"><code>benchmarks/bench_noise.py</code></a>.</span></div>
+          <div><b>3.14</b><span>is the minimum Python, for the standard library's <code>compression.zstd</code>.</span></div>
+        </div>
+      </div>
+      <div class="note n-limits" id="limits">
+        <h3>Where the section ends</h3>
+        <ul class="limits">
+          <li><b>One leaked key weakens its layer.</b><p>If <code>server_key</code> or <code>client_key</code> leaks, that party's protection is gone. The other still holds.</p></li>
+          <li><b>No replay detection.</b><p>A valid ciphertext opens every time. Put a nonce or timestamp inside the plaintext if you need it.</p></li>
+          <li><b>Not a transport protocol.</b><p>This is for records and files at rest. Use TLS for data in flight.</p></li>
+          <li><b>No password stretching.</b><p>Run Argon2id yourself and pass in the 32-byte result.</p></li>
+          <li><b>No memory wiping.</b><p>Decrypted bytes live on the Python heap and are not zeroed.</p></li>
+          <li><b>Streams can fail midway.</b><p>A failed <code>decrypt_stream</code> may leave earlier chunks written. The bytes API is atomic.</p></li>
+        </ul>
+      </div>
+    </div>
+    <div class="install-row">
+      <p>Start digging.</p>
+      <div class="actions">
+        <button class="copy" data-copy="uv add a23crypt">uv add a23crypt</button>
+        <a class="btn line" href="https://github.com/a23one/a23crypt">Read the source</a>
+      </div>
+    </div>
+    <footer><span>a23crypt 0.2.0. MIT License.</span><span>Copyright 2026 Aditya Dedhia.</span></footer>
+  </div>
+</section>
+
+<script type="module">
+  import * as a23 from "../../public/shared/a23crypt.js";
+
+  const $ = (s) => document.querySelector(s);
+  const serverKey = a23.randomBytes(32);
+  const clientKey = a23.randomBytes(32);
+  const recordKey = a23.utf8("map-0417");
+
+  // USGS-style lithology patterns, drawn in each layer's ink colour.
+  const svg = (w, h, body) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'>${body}</svg>`)}")`;
+  const PATTERNS = {
+    soil: svg(28, 22, `<g fill='#f1e9dc' fill-opacity='.22'><circle cx='4' cy='5' r='1.2'/><circle cx='17' cy='3' r='.9'/><circle cx='11' cy='13' r='1.4'/><circle cx='23' cy='16' r='1'/><circle cx='3' cy='19' r='.8'/></g>`),
+    sand: svg(14, 14, `<g fill='#2b2116' fill-opacity='.22'><circle cx='3' cy='3' r='1'/><circle cx='10' cy='10' r='1'/></g>`),
+    gravel: svg(64, 48, `<g fill='none' stroke='#17160f' stroke-opacity='.28' stroke-width='1.2'><ellipse cx='12' cy='12' rx='7' ry='5'/><ellipse cx='40' cy='9' rx='4' ry='3'/><ellipse cx='52' cy='30' rx='8' ry='6'/><ellipse cx='22' cy='34' rx='5' ry='4'/><circle cx='6' cy='42' r='2.5'/><circle cx='35' cy='24' r='2'/></g>`),
+    slate: svg(48, 16, `<g stroke='#e6ecf2' stroke-opacity='.2' stroke-width='1.2'><path d='M2 4h18M28 4h16M12 12h20M38 12h8'/></g>`),
+    basalt: svg(36, 32, `<g fill='none' stroke='#e9ecef' stroke-opacity='.12' stroke-width='1.2'><path d='M4 6l4 7 4-7M22 20l4 7 4-7'/></g>`),
+  };
+
+  const LAYERS = [
+    { id: "wire", cls: "s-soil", pat: "soil", color: "var(--soil)", name: "The wire", sub: "What anyone who steals the file sees" },
+    { id: "client", cls: "s-sand", pat: "sand", color: "var(--sand)", name: "The client seal", sub: "ChaCha20-Poly1305, opened by the client key" },
+    { id: "noise", cls: "s-gravel", pat: "gravel", color: "var(--gravel)", name: "The noise bed", sub: "Bytes scattered by both keys together" },
+    { id: "server", cls: "s-slate", pat: "slate", color: "var(--slate)", name: "The server seal", sub: "AES-256-GCM, opened by the server key" },
+    { id: "bedrock", cls: "s-basalt", pat: "basalt", color: "var(--basalt)", name: "Bedrock", sub: "Your message" },
+  ];
+
+  const bytes = (arr, cls = () => "") => Array.from(arr, (b, i) => `<span class="b ${cls(i)}">${b.toString(16).padStart(2, "0")}</span>`).join("");
+
+  // Each boundary between layers is traced from the ciphertext itself.
+  function contour(seedBytes, fill) {
+    const n = 48;
+    let d = "M0 56 L0 30";
+    for (let i = 0; i <= n; i++) {
+      const b = seedBytes[i % seedBytes.length];
+      const y = 18 + (b / 255) * 22 + Math.sin(i / 3) * 6;
+      d += ` L${((i / n) * 1000).toFixed(1)} ${y.toFixed(1)}`;
+    }
+    d += " L1000 56 Z";
+    return `<svg class="contour" viewBox="0 0 1000 56" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="${fill}"/></svg>`;
+  }
+
+  function build(r, msg) {
+    const f = r.frames[0];
+    const ct = r.ciphertext;
+    const hdr = r.spans.filter((s) => !("frame" in s));
+    const hdrEnd = hdr.at(-1).end;
+    const noiseSet = new Set(f.noiseAt);
+    const sizes = {
+      wire: ct.length,
+      client: f.outerCt.length,
+      noise: f.noisy.length,
+      server: f.innerCt.length,
+      bedrock: f.chunk.length,
+    };
+
+    const body = {
+      wire: `
+        <div class="s-text">
+          <p>The top layer is the file as it sits on disk: a short header in the clear, then length-prefixed frames. The record key and a fresh 16-byte salt are stored openly, because neither is secret. Without both master keys they are only labels.</p>
+          <p>Every encryption picks a new salt, so sealing the same message twice never produces the same file.</p>
+        </div>
+        <div class="core"><div class="core-cap"><b>Header and frame</b><span>${sizes.wire} bytes</span></div>
+          <dl class="fieldmap">${hdr.map((s) => `<dt>${s.field}</dt><dd>${a23.hex(ct.subarray(s.start, s.end), " ")}</dd>`).join("")}
+          <dt>frame_len</dt><dd>${a23.hex(ct.subarray(hdrEnd, hdrEnd + 4), " ")}</dd>
+          <dt>frame body</dt><dd>${f.outerCt.length} bytes, shown in the next layer</dd></dl></div>`,
+      client: `
+        <div class="s-text">
+          <p>The outermost seal belongs to the client. Its subkey comes from <code>client_key</code> through HKDF-SHA3-512, salted with the record key and the per-encryption salt. A 16-byte Poly1305 tag, underlined at the end, fails loudly if a single bit changes.</p>
+          <dl class="facts"><dt>Cipher</dt><dd>ChaCha20-Poly1305</dd><dt>Subkey</dt><dd>HKDF-SHA3-512 of client_key</dd><dt>Bound into the tag</dt><dd>chunk index, final-chunk flag, flags, chunk size</dd></dl>
+        </div>
+        <div class="core"><div class="core-cap"><b>Client-sealed bytes</b><span>${sizes.client} bytes</span></div>${bytes(f.outerCt, (i) => (i >= f.outerCt.length - 16 ? "tag" : ""))}</div>`,
+      noise: `
+        <div class="s-text">
+          <p>Under the client seal is a bed of noise. A SHAKE-256 keystream decides where to drop a random byte between runs of real ciphertext. Its seed is derived from <em>both</em> master keys and is never written down, so an attacker who somehow broke the client seal would still face scrambled offsets.</p>
+          <p>Noise bytes are uniform over 0 to 255. To you they look exactly like the ciphertext around them, which is the point. The two standard AEADs carry the security claim; this layer is extra depth.</p>
+          <label class="toggle"><input type="checkbox" id="reveal"> Show which bytes are noise</label>
+        </div>
+        <div class="core" id="noise-core"><div class="core-cap"><b>Noisy stream</b><span>${sizes.noise} bytes, ${f.noiseAt.length} of them noise</span></div>${bytes(f.noisy, (i) => (noiseSet.has(i) ? "nz" : ""))}</div>`,
+      server: `
+        <div class="s-text">
+          <p>The innermost seal belongs to the server. A different hash family on purpose: HKDF-SHA-512 derives the subkey from <code>server_key</code>, so a future break in SHA-3 or SHA-2 alone does not reach both seals.</p>
+          <dl class="facts"><dt>Cipher</dt><dd>AES-256-GCM</dd><dt>Subkey</dt><dd>HKDF-SHA-512 of server_key</dd><dt>Nonce</dt><dd>chunk index in a separate domain from the client seal</dd></dl>
+        </div>
+        <div class="core"><div class="core-cap"><b>Server-sealed bytes</b><span>${sizes.server} bytes</span></div>${bytes(f.innerCt, (i) => (i >= f.innerCt.length - 16 ? "tag" : ""))}</div>`,
+      bedrock: `
+        <div class="vein-wrap">
+          <div class="vein fresh" id="vein"></div>
+          <div class="vein-meta"><span>Opened with both keys, through every layer above, in <b id="took"></b>.</span><span><b>${sizes.wire}</b> bytes on disk for <b>${sizes.bedrock}</b> bytes of message.</span></div>
+          <div style="margin-top:28px;display:flex;gap:14px;flex-wrap:wrap">
+            <button class="btn" id="show-py">Open it in Python instead</button>
+            <a class="btn line" href="#">Seal another message</a>
+          </div>
+          <div class="py" id="py"><p style="margin:0;color:#c6ccd3">Install a23crypt and run this. It opens the exact bytes sealed in this tab.</p><pre id="py-code"></pre></div>
+        </div>`,
+    };
+
+    const host = $("#section");
+    host.querySelectorAll(".layer").forEach((n) => n.remove());
+    let prevColor = "var(--sky)";
+    LAYERS.forEach((L, i) => {
+      const wrap = document.createElement("div");
+      wrap.className = "layer";
+      wrap.style.background = prevColor;
+      wrap.innerHTML = `${contour(ct.subarray(i * 7), L.color)}
+        <section class="stratum ${L.cls}" id="${L.id}" style="--pattern:${PATTERNS[L.pat]}" aria-labelledby="h-${L.id}">
+          ${L.id === "bedrock"
+            ? `<div class="vein-wrap"><h2 class="s-name" id="h-${L.id}">${L.name}</h2><p class="s-depth">${L.sub}, ${sizes.bedrock} bytes</p></div>${body[L.id]}`
+            : `<div class="s-grid"><div><h2 class="s-name" id="h-${L.id}">${L.name}</h2><p class="s-depth">${L.sub}</p>${body[L.id].split('<div class="core"')[0]}</div><div class="core"${body[L.id].split('<div class="core"')[1]}</div>`}
+        </section>`;
+      host.append(wrap);
+      prevColor = L.color;
+    });
+
+    $("#legend").innerHTML = LAYERS.map((L) => `<li><a href="#${L.id}"><span class="sw" style="background:${L.color};background-image:${PATTERNS[L.pat]}"></span><span class="nm">${L.name}</span><span class="sz">${sizes[L.id]} B</span></a></li>`).join("");
+    $("#gauge ol").innerHTML = LAYERS.map(() => "<li></li>").join("");
+
+    const t0 = performance.now();
+    const pt = a23.decrypt(ct, { serverKey, clientKey, recordKey });
+    $("#took").textContent = `${Math.max(0.1, performance.now() - t0).toFixed(1)} ms`;
+    $("#vein").textContent = a23.text(pt) || "(an empty message)";
+    $("#py-code").textContent = a23.pythonSnippet({ ciphertext: ct, serverKey, clientKey, recordKey });
+
+    $("#reveal").addEventListener("change", (e) => {
+      $("#noise-core").querySelectorAll(".nz").forEach((n) => n.classList.toggle("n", e.target.checked));
+    });
+    $("#show-py").addEventListener("click", (e) => {
+      const open = $("#py").classList.toggle("open");
+      e.currentTarget.textContent = open ? "Hide the Python" : "Open it in Python instead";
+    });
+    observe();
+  }
+
+  let io;
+  function observe() {
+    io?.disconnect();
+    const ticks = [...document.querySelectorAll("#gauge li")];
+    const layers = LAYERS.map((L) => document.getElementById(L.id));
+    io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const i = layers.indexOf(e.target);
+        ticks.forEach((t, j) => t.classList.toggle("on", j === i));
+        const gauge = $("#gauge");
+        gauge.style.color = getComputedStyle(e.target).color;
+      }
+    }, { rootMargin: "-45% 0px -45% 0px" });
+    layers.forEach((l) => io.observe(l));
+    const sectionIo = new IntersectionObserver(([e]) => $("#gauge").classList.toggle("on", e.isIntersecting), { rootMargin: "-40% 0px -40% 0px" });
+    sectionIo.observe($("#section"));
+  }
+
+  function seal() {
+    const msg = $("#msg").value;
+    build(a23.encrypt(a23.utf8(msg), { serverKey, clientKey, recordKey }), msg);
+  }
+
+  $("#bury").addEventListener("submit", (e) => {
+    e.preventDefault();
+    seal();
+    document.getElementById("wire").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const t = b.textContent;
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch { b.textContent = "Select and copy"; }
+    setTimeout(() => (b.textContent = t), 1500);
+  }));
+
+  seal();
+</script>
+</body>
+</html>

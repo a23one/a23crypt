@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a23crypt: two keys, three layers</title>
+<meta name="description" content="a23crypt seals every record in three layers under two keys held by two parties. Either key alone opens nothing. Encryption for Python 3.14.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2216%22 height=%2232%22 fill=%22%231f35d6%22/%3E%3Crect x=%2216%22 width=%2216%22 height=%2232%22 fill=%22%23000%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Martian+Mono:wdth,wght@75..112.5,300..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cobalt: #1f35d6;
+    --cobalt-deep: #0c1a73;
+    --paper: #ffffff;
+    --mist: #eef0fd;
+    --rule: #c9cff6;
+    --crimson: #c8102e;
+    --sans: "Archivo", system-ui, sans-serif;
+    --mono: "Martian Mono", ui-monospace, monospace;
+    --seam: 50vw;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--cobalt-deep);
+    background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--cobalt); outline-offset: 3px; }
+  .on-cobalt :focus-visible { outline-color: var(--paper); }
+  code, pre, .mono { font-family: var(--mono); font-stretch: 87.5%; }
+  p code, li code { font-size: .84em; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---------- hero: the split ---------- */
+  .hero {
+    position: relative;
+    min-height: 100svh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    background: linear-gradient(90deg, var(--cobalt) 0 var(--seam), var(--paper) var(--seam) 100%);
+    overflow: hidden;
+  }
+  .nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 22px clamp(20px, 4vw, 48px);
+    font-size: 15px;
+  }
+  .nav .brand { color: var(--paper); font-weight: 800; font-stretch: 112%; font-size: 19px; text-decoration: none; letter-spacing: -.01em; }
+  .nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 28px; justify-content: flex-end; color: var(--cobalt); }
+  .nav ul a { text-decoration: none; font-weight: 600; }
+  .nav ul a:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 600px) 1fr;
+    column-gap: 32px;
+    align-items: center;
+    align-content: center;
+    padding: 0 clamp(20px, 4vw, 48px);
+  }
+  .party {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .party.server { color: var(--paper); align-items: flex-start; }
+  .party.client { color: var(--cobalt); align-items: flex-end; text-align: right; }
+  .party h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+  .party h2 b { display: block; font-size: 26px; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; }
+  .key-btn {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 6px 0;
+    color: inherit;
+    cursor: pointer;
+    width: min(100%, 340px);
+    transition: transform .6s var(--ease), opacity .6s var(--ease);
+  }
+  .key-btn svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .key-btn .solid { fill: currentColor; transition: fill-opacity .4s; }
+  .key-btn .outline { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 4 4; opacity: 0; transition: opacity .4s; }
+  .key-btn[aria-pressed="false"] .solid { fill-opacity: 0; }
+  .key-btn[aria-pressed="false"] .outline { opacity: .8; }
+  .server .key-btn[aria-pressed="false"] { transform: translateX(-36px); }
+  .client .key-btn[aria-pressed="false"] { transform: translateX(36px); }
+  .key-hex { font-size: 11px; line-height: 1.6; opacity: .82; max-width: 340px; word-break: break-all; }
+  .key-hint { font-size: 14px; opacity: .8; }
+
+  .seam-col { display: flex; flex-direction: column; align-items: stretch; gap: 20px; padding: 12px 0 28px; }
+  .lede {
+    margin: 0 auto;
+    max-width: 30em;
+    text-align: center;
+    font-size: 19px;
+    font-stretch: 100%;
+    background: var(--paper);
+    color: var(--cobalt-deep);
+    padding: 14px 18px;
+    border: 2px solid var(--cobalt);
+  }
+
+  .lock {
+    background: var(--paper);
+    border: 2px solid var(--cobalt);
+    box-shadow: 10px 10px 0 var(--cobalt-deep);
+    color: var(--cobalt-deep);
+  }
+  .lock-row { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 14px 18px; align-items: baseline; }
+  .lock-row + .lock-row { border-top: 1px solid var(--rule); }
+  .lock-row > span:first-child { font-size: 14px; font-weight: 700; }
+  .lock input {
+    width: 100%;
+    font: inherit;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--cobalt-deep);
+    border: 0;
+    border-bottom: 2px solid var(--cobalt);
+    padding: 2px 0 4px;
+    background: transparent;
+    border-radius: 0;
+  }
+  .lock input:focus-visible { outline: none; border-bottom-color: var(--cobalt-deep); background: var(--mist); }
+  .sealed { font-size: 11.5px; line-height: 1.65; color: var(--cobalt); word-break: break-all; max-height: 5.1em; overflow: hidden; position: relative; }
+  .sealed .hdr { color: var(--cobalt-deep); font-weight: 700; }
+  .opened { font-size: 19px; font-weight: 700; min-height: 1.5em; overflow-wrap: anywhere; }
+  .opened.fail { color: var(--crimson); }
+  .opened small { display: block; font-size: 14px; font-weight: 500; color: var(--cobalt-deep); margin-top: 2px; }
+  .opened .err { font-family: var(--mono); font-stretch: 87.5%; font-size: 14px; font-weight: 600; }
+
+  .hero-foot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 18px clamp(20px, 4vw, 48px) 26px;
+    font-size: 14px;
+    align-items: end;
+  }
+  .hero-foot .l { color: var(--paper); }
+  .hero-foot .r { color: var(--cobalt); text-align: right; }
+  .install {
+    font-family: var(--mono);
+    font-stretch: 87.5%;
+    font-size: 14px;
+    background: none;
+    color: inherit;
+    border: 1.5px solid currentColor;
+    padding: 8px 12px;
+    cursor: copy;
+  }
+
+  /* ---------- body ---------- */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 48px); }
+  section { padding: clamp(80px, 11vw, 150px) 0 0; }
+  .sec-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 48px; align-items: end; margin-bottom: 48px; }
+  .sec-head h2 {
+    margin: 0;
+    font-size: clamp(36px, 4.6vw, 64px);
+    line-height: .98;
+    font-weight: 800;
+    font-stretch: 112%;
+    letter-spacing: -.03em;
+    color: var(--cobalt);
+  }
+  .sec-head p { margin: 0; max-width: 34em; }
+
+  /* truth table */
+  .truth { display: grid; grid-template-columns: 180px 1fr 1fr; border: 2px solid var(--cobalt); }
+  .truth > div { padding: 22px 24px; }
+  .truth .cell { min-height: 120px; }
+  .truth .corner { background: var(--mist); }
+  .truth .colh, .truth .rowh { font-weight: 700; font-size: 15px; background: var(--mist); }
+  .truth .colh { border-left: 1px solid var(--rule); padding-block: 16px; }
+  .truth .rowh { border-top: 1px solid var(--rule); display: flex; align-items: center; }
+  .truth .cell { border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
+  .truth .cell.ok { background: var(--cobalt); color: var(--paper); }
+  .cell .verdict { font-size: 22px; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; display: block; margin-bottom: 6px; overflow-wrap: anywhere; }
+  .cell .why { font-size: 15px; }
+  .cell .err { font-family: var(--mono); font-stretch: 87.5%; font-size: 13px; color: var(--crimson); display: block; margin-bottom: 4px; }
+
+  /* nested seals */
+  .seals { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 56px; align-items: center; }
+  .seal { border: 2px solid var(--cobalt); padding: 18px 18px 18px; }
+  .seal > .seal { margin-top: 14px; }
+  .seal-label { display: flex; justify-content: space-between; gap: 16px; font-size: 15px; }
+  .seal-label b { font-weight: 800; font-stretch: 108%; }
+  .seal-label span { font-size: 13px; text-align: right; }
+  .seal.client { background: var(--paper); color: var(--cobalt-deep); }
+  .seal.both { background: linear-gradient(90deg, var(--cobalt) 0 50%, var(--paper) 50% 100%); }
+  .seal.both > .seal-label { background: var(--paper); color: var(--cobalt-deep); padding: 8px 12px; border: 1.5px solid var(--cobalt); }
+  .seal.server { background: var(--cobalt); color: var(--paper); border-color: var(--paper); }
+  .seal.core { background: var(--paper); color: var(--cobalt-deep); border-color: var(--paper); text-align: center; padding: 26px 18px; font-weight: 700; }
+  .seal.core .mono { display: block; font-size: 13px; font-weight: 500; margin-top: 6px; color: var(--cobalt); overflow-wrap: anywhere; }
+  .legend { display: grid; gap: 22px; }
+  .legend p { margin: 0; }
+  .legend .sw { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--cobalt); vertical-align: -1px; margin-right: 8px; }
+  .legend .sw.s { background: var(--cobalt); }
+  .legend .sw.b { background: linear-gradient(90deg, var(--cobalt) 0 50%, var(--paper) 50%); }
+
+  /* records */
+  .records { border-top: 2px solid var(--cobalt); }
+  .rec { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 4fr) minmax(0, 4fr); gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+  .rec.head { font-size: 14px; font-weight: 700; padding: 12px 0; }
+  .rec .rk { font-weight: 700; overflow-wrap: anywhere; }
+  .rec .fp { font-family: var(--mono); font-stretch: 87.5%; font-size: 14px; color: var(--cobalt); overflow-wrap: anywhere; }
+  .rec .fp.flash { animation: flash .9s var(--ease); }
+  @keyframes flash { from { background: var(--cobalt); color: var(--paper); } to { background: transparent; } }
+  .records-actions { display: flex; gap: 18px; align-items: center; margin-top: 22px; flex-wrap: wrap; }
+  .btn {
+    appearance: none;
+    font: inherit;
+    font-weight: 700;
+    font-size: 16px;
+    background: var(--cobalt);
+    color: var(--paper);
+    border: 2px solid var(--cobalt);
+    padding: 11px 20px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .btn.ghost { background: transparent; color: var(--cobalt); }
+  .btn:hover { background: var(--cobalt-deep); border-color: var(--cobalt-deep); color: var(--paper); }
+
+  /* code */
+  .code-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 2px solid var(--cobalt); }
+  .code-grid figure { margin: 0; min-width: 0; }
+  .code-grid figure + figure { border-left: 2px solid var(--cobalt); }
+  .code-grid figcaption { padding: 14px 20px; font-weight: 700; font-size: 15px; border-bottom: 1px solid var(--rule); background: var(--mist); }
+  pre { margin: 0; padding: 22px 20px; font-size: 13px; line-height: 1.7; overflow-x: auto; color: var(--cobalt-deep); }
+  pre .k { color: var(--cobalt); font-weight: 700; }
+  pre .s { color: #5b6bd9; }
+  pre .c { color: #7f87b8; }
+
+  /* proof */
+  .proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--cobalt); }
+  .proof > div { padding: 26px 26px 26px 0; }
+  .proof > div + div { padding-left: 26px; border-left: 1px solid var(--rule); }
+  .proof b { display: block; font-size: clamp(40px, 4.4vw, 60px); font-weight: 850; font-stretch: 118%; letter-spacing: -.035em; line-height: 1; color: var(--cobalt); margin-bottom: 10px; }
+  .proof p { margin: 0; font-size: 16px; }
+  .interop { margin-top: 48px; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 40px; align-items: start; }
+  .interop h3 { margin: 0 0 12px; font-size: 26px; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; color: var(--cobalt); line-height: 1.1; }
+  .interop p { margin: 0 0 18px; }
+  .interop pre { background: var(--cobalt-deep); color: #dfe3ff; max-height: 260px; font-size: 12px; word-break: break-all; white-space: pre-wrap; }
+
+  /* limits */
+  .limits { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 56px; }
+  .limits li { break-inside: avoid; padding: 18px 0; border-top: 1px solid var(--rule); }
+  .limits b { display: block; font-size: 19px; font-weight: 800; font-stretch: 108%; margin-bottom: 4px; }
+  .limits p { margin: 0; font-size: 16px; }
+
+  /* closing split */
+  .closing {
+    margin-top: clamp(90px, 12vw, 160px);
+    background: linear-gradient(90deg, var(--cobalt) 0 50%, var(--paper) 50% 100%);
+    border-top: 2px solid var(--cobalt);
+  }
+  .closing .wrap { display: grid; grid-template-columns: 1fr 1fr; }
+  .closing .half { padding: 72px 40px 72px 0; }
+  .closing .half + .half { padding: 72px 0 72px 40px; }
+  .closing .l { color: var(--paper); }
+  .closing h2 { margin: 0 0 18px; font-size: clamp(32px, 3.6vw, 48px); line-height: 1; font-weight: 800; font-stretch: 112%; letter-spacing: -.03em; }
+  .closing .l .install { font-size: 17px; padding: 14px 18px; }
+  .closing .r { color: var(--cobalt-deep); display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+  .closing .r a { font-weight: 700; font-size: 19px; color: var(--cobalt); }
+  footer { padding: 26px 0 40px; font-size: 14px; color: var(--cobalt-deep); }
+
+
+  /* ---------- a·2·3: the name, split at the seam ---------- */
+  .stage { row-gap: 0; }
+  .mark {
+    grid-column: 1 / -1;
+    margin: 2vh 0 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    font-size: clamp(72px, 10.6vw, 186px);
+    line-height: .86;
+    font-weight: 850;
+    font-stretch: 100%;
+    letter-spacing: -.045em;
+  }
+  .mark .l { text-align: right; color: var(--paper); padding-right: .05em; }
+  .mark .r { text-align: left; color: var(--cobalt); padding-left: .05em; }
+  .mark .digit { position: relative; display: inline-block; font-weight: 900; font-stretch: 125%; letter-spacing: 0; }
+  .mark .digit small {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    translate: -50% 0;
+    margin-top: 12px;
+    padding-top: 10px;
+    font-size: clamp(15px, 1.35vw, 21px);
+    line-height: 1.1;
+    font-weight: 700;
+    font-stretch: 112%;
+    letter-spacing: 0;
+    white-space: nowrap;
+    border-top: 3px solid currentColor;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark .digit { animation: widen 1.1s var(--ease) .25s both; }
+    .mark .digit small { animation: arrive .6s var(--ease) 1.15s both; }
+  }
+  @keyframes widen { from { font-stretch: 62%; font-weight: 500; } }
+  @keyframes arrive { from { opacity: 0; transform: translateY(-6px); } }
+
+  .stage .lede { margin-top: 58px; padding: 10px 16px; font-size: 17.5px; }
+
+  /* the three-layer stack */
+  .stack-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 196px) minmax(0, 1fr) 88px;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 18px;
+    border-top: 1px solid var(--rule);
+    transition: opacity .35s;
+  }
+  .badge { width: 26px; height: 26px; border: 2px solid var(--cobalt); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+  .badge.s { background: var(--cobalt); color: var(--paper); }
+  .badge.b { background: linear-gradient(90deg, var(--cobalt) 0 50%, var(--paper) 50%); color: transparent; }
+  .badge.c { color: var(--cobalt); }
+  .layer-name { font-size: 15px; font-weight: 800; font-stretch: 108%; line-height: 1.2; }
+  .layer-name span { display: block; font-size: 12.5px; font-weight: 500; font-stretch: 100%; }
+  .layer-bytes { font-family: var(--mono); font-stretch: 87.5%; font-size: 11.5px; color: var(--cobalt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status { font-size: 13px; font-weight: 700; text-align: right; }
+  .status.opened { color: var(--cobalt); }
+  .status.rejected { background: var(--crimson); color: var(--paper); text-align: center; padding: 3px 6px; }
+  .status.scrambled { color: var(--crimson); box-shadow: inset 0 0 0 1.5px var(--crimson); text-align: center; padding: 3px 6px; }
+  .stack-row.unreached { opacity: .35; }
+  .status.unreached { color: var(--cobalt-deep); font-weight: 500; }
+  .stack-note { padding: 8px 18px 12px; font-size: 13px; border-top: 1px solid var(--rule); background: var(--mist); }
+
+  /* section numerals: the 2 and the 3 of the name */
+  .sec-head.num { grid-template-columns: auto minmax(0, 5fr) minmax(0, 6fr); }
+  .numeral {
+    font-size: clamp(130px, 15vw, 230px);
+    line-height: .74;
+    font-weight: 900;
+    font-stretch: 125%;
+    letter-spacing: -.04em;
+    color: transparent;
+    -webkit-text-stroke: 3px var(--cobalt);
+    -webkit-background-clip: text;
+    background-clip: text;
+    margin-right: 8px;
+    padding-top: .08em;
+  }
+  /* 2: one half solid, one half outline, like the two parties. */
+  .numeral.two { background-image: linear-gradient(90deg, var(--cobalt) 0 50%, transparent 50%); }
+  /* 3: outline on top, split in the middle, solid at the core. */
+  .numeral.three {
+    background-image:
+      linear-gradient(90deg, var(--cobalt) 0 50%, transparent 50%),
+      linear-gradient(var(--cobalt), var(--cobalt));
+    background-size: 100% 31%, 100% 38%;
+    background-position: 0 50%, 0 100%;
+    background-repeat: no-repeat;
+  }
+
+  @media (max-width: 900px) {
+    .hero { background: var(--paper); }
+    .nav { background: var(--cobalt); }
+    .nav ul { color: var(--paper); gap: 18px; }
+    .stage { grid-template-columns: 1fr; padding: 0; }
+    .party { padding: 28px 20px; }
+    .party.server { background: var(--cobalt); order: 1; }
+    .seam-col { order: 2; padding: 28px 20px; }
+    .party.client { order: 3; }
+    .hero-foot { grid-template-columns: 1fr; gap: 10px; }
+    .hero-foot .l { color: var(--cobalt-deep); }
+    .hero-foot .r { text-align: left; }
+    .sec-head, .seals, .interop { grid-template-columns: 1fr; gap: 20px; }
+    .truth { grid-template-columns: 1fr 1fr; }
+    .truth .corner { display: none; }
+    .truth .colh:nth-of-type(2) { border-left: 0; }
+    .truth .rowh { grid-column: 1 / -1; min-height: 0; }
+    .truth .cell:nth-child(4n+1) { border-left: 0; }
+    .rec { grid-template-columns: 1fr; gap: 4px; }
+    .rec.head { display: none; }
+    .code-grid { grid-template-columns: 1fr; }
+    .code-grid figure + figure { border-left: 0; border-top: 2px solid var(--cobalt); }
+    .proof { grid-template-columns: 1fr; }
+    .proof > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+    .limits { columns: 1; }
+    .closing { background: var(--cobalt); }
+    .closing .wrap { grid-template-columns: 1fr; }
+    .closing .half, .closing .half + .half { padding: 40px 0; }
+    .closing .r { background: var(--paper); margin: 0 -20px; padding: 30px 20px; }
+      /* On narrow screens the seam moves to sit between the 2 and the 3. */
+    .mark { grid-template-columns: 32fr 68fr; background: linear-gradient(90deg, var(--cobalt) 0 32%, var(--paper) 32% 100%); padding: 34px 0 66px; margin: 0; font-size: 15vw; }
+    /* Labels grow away from the seam so they never collide. */
+    .mark .digit small { font-size: 13px; translate: none; }
+    .mark .l .digit small { left: auto; right: 0; text-align: right; }
+    .mark .r .digit small { left: 0; }
+    .nav ul li:nth-child(-n+2) { display: none; }
+    .stage .lede { margin: 0; }
+    .stack-row { grid-template-columns: 30px minmax(0, 1fr) 90px; }
+    .layer-bytes { display: none; }
+    .sec-head.num { grid-template-columns: 1fr; }
+    .numeral { font-size: 120px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <nav class="nav" aria-label="Primary">
+    <a class="brand" href="#">a23crypt</a>
+    <ul>
+      <li><a href="#keys">Two keys</a></li>
+      <li><a href="#layers">Three layers</a></li>
+      <li><a href="#code">Code</a></li>
+      <li><a href="https://github.com/a23one/a23crypt">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <div class="stage">
+    <h1 class="mark">
+      <span class="visually-hidden">a23crypt: two keys, three layers.</span>
+      <span class="l" aria-hidden="true">a<span class="digit">2<small>two keys</small></span></span>
+      <span class="r" aria-hidden="true"><span class="digit">3<small>three layers</small></span>crypt</span>
+    </h1>
+
+    <div class="party server on-cobalt">
+      <h2>Held by your server<b>server_key</b></h2>
+      <button class="key-btn" id="key-server" aria-pressed="true" aria-label="Server key: held. Press to withhold it."></button>
+      <div class="key-hex mono" id="hex-server"></div>
+      <div class="key-hint">Press a key to take it away.</div>
+    </div>
+
+    <div class="seam-col">
+      <p class="lede"><b>Encryption that takes two.</b> Every record is sealed in three layers under two keys, held by two different parties. Either key alone opens nothing.</p>
+      <div class="lock" role="group" aria-label="Live demo">
+        <label class="lock-row"><span>Message</span><input id="msg" value="The vault code is 4417." maxlength="200" autocomplete="off" spellcheck="false"></label>
+        <div id="stack"></div>
+        <div class="stack-note">Sealing runs from layer 1 to layer 3. Opening runs back from 3 to 1.</div>
+        <div class="lock-row"><span>Opened</span><div class="opened" id="opened" aria-live="polite"></div></div>
+      </div>
+    </div>
+
+    <div class="party client">
+      <h2>Held by your user<b>client_key</b></h2>
+      <button class="key-btn" id="key-client" aria-pressed="true" aria-label="Client key: held. Press to withhold it."></button>
+      <div class="key-hex mono" id="hex-client"></div>
+      <div class="key-hint">Both keys were generated in your browser.</div>
+    </div>
+  </div>
+
+  <div class="hero-foot">
+    <div class="l">Python 3.14+. MIT licensed. Version 0.2.0.</div>
+    <div class="r"><button class="install" data-copy="uv add a23crypt">uv add a23crypt</button></div>
+  </div>
+</header>
+
+<main>
+  <section id="keys">
+    <div class="wrap">
+      <div class="sec-head num">
+        <div class="numeral two" aria-hidden="true">2</div>
+        <h2>Two keys. Neither one is enough.</h2>
+        <p>Your server holds one key and your user holds the other. Every combination below was just run against the message above, in this tab. A missing key is replaced by a random guess, which is the best an attacker holding one key can do.</p>
+      </div>
+      <div class="truth" id="truth">
+        <div class="corner"></div>
+        <div class="colh">Client key present</div>
+        <div class="colh">Client key guessed</div>
+        <div class="rowh">Server key present</div>
+        <div class="cell" data-s="1" data-c="1"></div>
+        <div class="cell" data-s="1" data-c="0"></div>
+        <div class="rowh">Server key guessed</div>
+        <div class="cell" data-s="0" data-c="1"></div>
+        <div class="cell" data-s="0" data-c="0"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="layers">
+    <div class="wrap">
+      <div class="sec-head num">
+        <div class="numeral three" aria-hidden="true">3</div>
+        <h2>Three layers, each with an owner.</h2>
+        <p>Two cipher families and two hash families, one per key, with a layer between them that needs both. If one family weakens in ten years, the other is still standing.</p>
+      </div>
+      <div class="seals">
+        <div>
+          <div class="seal client">
+            <div class="seal-label"><b>Layer 3: client seal</b><span>ChaCha20-Poly1305<br>HKDF-SHA3-512 subkey</span></div>
+            <div class="seal both">
+              <div class="seal-label"><b>Layer 2: noise</b><span>SHAKE-256 keystream<br>seeded from both keys</span></div>
+              <div class="seal server">
+                <div class="seal-label"><b>Layer 1: server seal</b><span>AES-256-GCM<br>HKDF-SHA-512 subkey</span></div>
+                <div class="seal core">Your record<span class="mono" id="core-msg"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <p><span class="sw s"></span><b>Layer 1 belongs to the server.</b> AES-256-GCM, under a subkey derived from <code>server_key</code> with HKDF-SHA-512.</p>
+          <p><span class="sw b"></span><b>Layer 2 belongs to both.</b> Random bytes are woven between the ciphertext bytes at positions only the two keys together can compute. The seed never touches the wire.</p>
+          <p><span class="sw"></span><b>Layer 3 belongs to the client.</b> ChaCha20-Poly1305, under a subkey derived from <code>client_key</code> with HKDF-SHA3-512.</p>
+          <p>The security claim rests on the two standard AEADs. The noise layer is extra depth on top.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Every record gets its own pair.</h2>
+        <p>Your two master keys never encrypt anything directly. Each record derives fresh subkeys from its <code>record_key</code> plus a random 16-byte salt, so one exposed record says nothing about the next. Seal the same record twice and the subkeys still differ.</p>
+      </div>
+      <div class="records" id="records">
+        <div class="rec head"><span>record_key</span><span>Server subkey, first 12 bytes</span><span>Client subkey, first 12 bytes</span></div>
+      </div>
+      <div class="records-actions">
+        <button class="btn" id="reseal">Seal them again</button>
+        <span id="reseal-note">Same master keys, same record keys.</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="code">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Four functions. Keyword-only.</h2>
+        <p>Bytes in, bytes out for records up to 1 MiB. Streams of any size in constant memory, in 64 KiB frames, with optional zstd compression that refuses decompression bombs.</p>
+      </div>
+      <div class="code-grid">
+        <figure>
+          <figcaption>A record</figcaption>
+<pre><span class="k">import</span> os
+<span class="k">import</span> a23crypt
+
+server_key = os.urandom(<span class="k">32</span>)   <span class="c"># lives on your server</span>
+client_key = os.urandom(<span class="k">32</span>)   <span class="c"># lives with your user</span>
+
+sealed = a23crypt.encrypt(
+    <span class="s">b"sensitive data"</span>,
+    server_key=server_key,
+    client_key=client_key,
+    record_key=<span class="s">b"record-uuid-001"</span>,
+)
+
+a23crypt.decrypt(
+    sealed,
+    server_key=server_key,
+    client_key=client_key,
+    record_key=<span class="s">b"record-uuid-001"</span>,
+)</pre>
+        </figure>
+        <figure>
+          <figcaption>A file of any size</figcaption>
+<pre><span class="k">with</span> open(<span class="s">"scan.tiff"</span>, <span class="s">"rb"</span>) <span class="k">as</span> src, \
+     open(<span class="s">"scan.enc"</span>, <span class="s">"wb"</span>) <span class="k">as</span> dst:
+    a23crypt.encrypt_stream(
+        src, dst,
+        server_key=server_key,
+        client_key=client_key,
+        record_key=<span class="s">b"file-001"</span>,
+        compress_level=<span class="k">3</span>,
+    )
+
+<span class="c"># Errors share one base class.</span>
+<span class="k">try</span>:
+    a23crypt.decrypt(sealed, ...)
+<span class="k">except</span> a23crypt.A23CryptError:
+    ...</pre>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>Checked from every side.</h2>
+        <p>The test suite attacks the format the way an adversary would: truncation, bit flips at every position, frame reordering, duplicated and substituted frames, header tampering, oversized length prefixes and compression bombs.</p>
+      </div>
+      <div class="proof">
+        <div><b>266</b><p>tests, running in about half a second.</p></div>
+        <div><b>100%</b><p>line coverage across the library.</p></div>
+        <div><b>255 MiB/s</b><p>for large payloads on an Apple M4 Max, with the noise layer vectorised in numpy.</p></div>
+      </div>
+      <div class="interop">
+        <div>
+          <h3>Don't take this page's word for it.</h3>
+          <p>The demo above runs a JavaScript port of the same wire format. Paste this into Python with a23crypt installed and it opens the exact ciphertext sealed in your browser.</p>
+          <button class="btn" id="copy-py">Copy Python snippet</button>
+        </div>
+        <pre class="mono" id="py"></pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <h2>What it won't do.</h2>
+        <p>Knowing where a tool stops is part of using it safely.</p>
+      </div>
+      <ul class="limits">
+        <li><b>Save a compromised endpoint.</b><p>If one party's key leaks, that party's protection is gone. The other key still holds.</p></li>
+        <li><b>Detect replays.</b><p>A valid ciphertext opens every time it's presented. Put a nonce or timestamp inside the plaintext if you need replay protection.</p></li>
+        <li><b>Wipe memory.</b><p>Decrypted bytes live on the Python heap and are not zeroed.</p></li>
+        <li><b>Replace TLS.</b><p>This is at-rest encryption for records and files, not a transport protocol.</p></li>
+        <li><b>Stretch passwords.</b><p>Derive 32-byte keys with Argon2id first, then pass them in.</p></li>
+        <li><b>Undo partial writes.</b><p>A failed <code>decrypt_stream</code> may leave earlier chunks in the destination. The bytes API is atomic.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="closing">
+    <div class="wrap">
+      <div class="half l on-cobalt">
+        <h2>Install it.</h2>
+        <button class="install" data-copy="uv add a23crypt">uv add a23crypt</button>
+      </div>
+      <div class="half r">
+        <a href="https://github.com/a23one/a23crypt">Read the source on GitHub</a>
+        <a href="https://pypi.org/project/a23crypt/">a23crypt on PyPI</a>
+        <span>Requires Python 3.14 for the standard library's zstd module.</span>
+      </div>
+    </div>
+  </div>
+  <footer class="wrap">MIT License. Copyright 2026 Aditya Dedhia.</footer>
+</main>
+
+<script type="module">
+  import * as a23 from "./shared/a23crypt.js";
+
+  const $ = (s) => document.querySelector(s);
+  const keys = { server: a23.randomBytes(32), client: a23.randomBytes(32) };
+  const held = { server: true, client: true };
+  const recordKey = a23.utf8("vault-note-0417");
+  let last = null;
+
+  // A key's 32 bytes become the bitting of a physical key blade.
+  function keySvg(bytes, mirrored) {
+    const x0 = 88, x1 = 336, top = 24, bottom = 66;
+    const step = (x1 - x0) / bytes.length;
+    let d = `M${x0} ${top}`;
+    bytes.forEach((b, i) => {
+      // Eight cut depths, like a real pin-tumbler key.
+      const depth = 2 + (b >> 5) * 2.6;
+      const xa = x0 + i * step;
+      d += ` L${(xa + step * .4).toFixed(1)} ${(top + depth).toFixed(1)} L${(xa + step * .6).toFixed(1)} ${(top + depth).toFixed(1)} L${(xa + step).toFixed(1)} ${top}`;
+    });
+    d += ` L${x1 + 12} ${top + 10} L${x1 + 12} ${bottom - 6} L${x1} ${bottom} L${x0} ${bottom} Z`;
+    const bow = `M6 45 a38 38 0 1 0 76 0 a38 38 0 1 0 -76 0 Z M26 45 a11 11 0 1 1 22 0 a11 11 0 1 1 -22 0 Z M80 30 h10 v30 h-10 Z`;
+    const groove = `M${x0 + 8} ${bottom - 9} H${x1 - 4}`;
+    const t = mirrored ? ` transform="translate(360 0) scale(-1 1)"` : "";
+    return `<svg viewBox="0 0 360 88" aria-hidden="true"><g${t}>
+      <path class="solid" fill-rule="evenodd" d="${bow} ${d}"/>
+      <path class="outline" fill-rule="evenodd" d="${bow} ${d}"/>
+      <path d="${groove}" stroke="var(--groove)" stroke-width="2" fill="none" opacity=".35"/></g></svg>`;
+  }
+
+  function renderKeys() {
+    for (const side of ["server", "client"]) {
+      const btn = $(`#key-${side}`);
+      btn.innerHTML = keySvg(keys[side], side === "client");
+      btn.style.setProperty("--groove", side === "server" ? "var(--cobalt)" : "var(--paper)");
+      $(`#hex-${side}`).textContent = a23.hex(keys[side], " ");
+    }
+  }
+
+  const guess = () => a23.randomBytes(32);
+  const escape = (s) => s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+
+  function tryOpen(ct, s, c) {
+    try {
+      const pt = a23.decrypt(ct, { serverKey: s ? keys.server : guess(), clientKey: c ? keys.client : guess(), recordKey });
+      return { ok: true, text: a23.text(pt) };
+    } catch (e) {
+      return { ok: false, error: e };
+    }
+  }
+
+  const LAYERS = [
+    { id: "server", n: 1, badge: "s", name: "Server seal", algo: "AES-256-GCM", bytes: (f) => f.innerCt },
+    { id: "noise", n: 2, badge: "b", name: "Noise", algo: "both keys", bytes: (f) => f.noisy },
+    { id: "client", n: 3, badge: "c", name: "Client seal", algo: "ChaCha20-Poly1305", bytes: (f) => f.outerCt },
+  ];
+  const STATUS = { opened: "Opened", rejected: "Rejected", scrambled: "Scrambled", unreached: "Not reached" };
+
+  function renderStack() {
+    const f = last.frames[0];
+    const steps = a23.peel(last, {
+      serverKey: held.server ? keys.server : guess(),
+      clientKey: held.client ? keys.client : guess(),
+      recordKey,
+    });
+    const statusOf = Object.fromEntries(steps.map((s) => [s.layer, s.status]));
+    $("#stack").innerHTML = LAYERS.map((L) => {
+      const st = statusOf[L.id];
+      const b = L.bytes(f);
+      return `<div class="stack-row ${st}">
+        <span class="badge ${L.badge}">${L.badge === "b" ? "" : L.n}</span>
+        <span class="layer-name">${L.n}. ${L.name}<span>${L.algo}, ${b.length} bytes</span></span>
+        <span class="layer-bytes">${a23.hex(b)}</span>
+        <span class="status ${st}">${STATUS[st]}</span>
+      </div>`;
+    }).join("");
+    return statusOf;
+  }
+
+  function open() {
+    const st = renderStack();
+    const out = $("#opened");
+    const r = tryOpen(last.ciphertext, held.server, held.client);
+    out.classList.toggle("fail", !r.ok);
+    if (r.ok) {
+      out.textContent = r.text || "(empty)";
+      return;
+    }
+    const who = !held.server && !held.client ? "Both keys withheld." : !held.server ? "Server key withheld." : "Client key withheld.";
+    const why = st.client === "rejected"
+      ? "Layer 3 rejected it, so nothing beneath was even tried."
+      : "Layer 3 opened, but without the server key the noise came out at the wrong positions and layer 1 rejected it.";
+    out.innerHTML = `<span class="err">${r.error.name}: ${escape(r.error.message)}</span><small>${who} ${why}</small>`;
+  }
+
+  function renderTruth() {
+    document.querySelectorAll("#truth .cell").forEach((cell) => {
+      const s = cell.dataset.s === "1", c = cell.dataset.c === "1";
+      const r = tryOpen(last.ciphertext, s, c);
+      cell.classList.toggle("ok", r.ok);
+      if (r.ok) {
+        cell.innerHTML = `<span class="verdict">Opens.</span><span class="why">“${escape(r.text)}”</span>`;
+      } else {
+        const why = r.error.detail === "outer ChaCha20-Poly1305 tag"
+          ? "Stopped at layer 3, the client seal."
+          : "Got through layer 3. Stopped at layer 1, the server seal.";
+        cell.innerHTML = `<span class="verdict">Stays shut.</span><span class="err">${r.error.name}</span><span class="why">${why}</span>`;
+      }
+    });
+  }
+
+  function seal() {
+    const msg = $("#msg").value;
+    last = a23.encrypt(a23.utf8(msg), { serverKey: keys.server, clientKey: keys.client, recordKey });
+    $("#core-msg").textContent = msg ? `“${msg}”` : "an empty record";
+    open();
+    renderTruth();
+    $("#py").textContent = a23.pythonSnippet({ ciphertext: last.ciphertext, serverKey: keys.server, clientKey: keys.client, recordKey });
+  }
+
+  const RECORDS = ["invoice-2026-0041", "note-7f3a9c", "avatar-19c2", "vault-note-0417"];
+  function renderRecords(flash) {
+    const box = $("#records");
+    box.querySelectorAll(".rec:not(.head)").forEach((n) => n.remove());
+    for (const rk of RECORDS) {
+      const { serverSub, clientSub } = a23.deriveSubkeys(keys.server, keys.client, a23.utf8(rk), a23.randomBytes(16));
+      const row = document.createElement("div");
+      row.className = "rec";
+      row.innerHTML = `<span class="rk mono">${rk}</span><span class="fp${flash ? " flash" : ""}">${a23.hex(serverSub.subarray(0, 12), " ")}</span><span class="fp${flash ? " flash" : ""}">${a23.hex(clientSub.subarray(0, 12), " ")}</span>`;
+      box.append(row);
+    }
+  }
+
+  for (const side of ["server", "client"]) {
+    $(`#key-${side}`).addEventListener("click", (e) => {
+      held[side] = !held[side];
+      e.currentTarget.setAttribute("aria-pressed", String(held[side]));
+      e.currentTarget.setAttribute("aria-label", `${side === "server" ? "Server" : "Client"} key: ${held[side] ? "held. Press to withhold it." : "withheld. Press to return it."}`);
+      open();
+    });
+  }
+  $("#msg").addEventListener("input", seal);
+  $("#reseal").addEventListener("click", () => {
+    renderRecords(true);
+    $("#reseal-note").textContent = "New salts, so every subkey changed.";
+  });
+
+  function copyable(btn, getText, done) {
+    btn.addEventListener("click", async () => {
+      const original = btn.textContent;
+      try {
+        await navigator.clipboard.writeText(getText());
+        btn.textContent = done;
+      } catch {
+        btn.textContent = "Copy failed. Select the text instead.";
+      }
+      setTimeout(() => (btn.textContent = original), 1600);
+    });
+  }
+  document.querySelectorAll("[data-copy]").forEach((b) => copyable(b, () => b.dataset.copy, "Copied"));
+  copyable($("#copy-py"), () => $("#py").textContent, "Copied Python snippet");
+
+  renderKeys();
+  seal();
+  renderRecords(false);
+</script>
+</body>
+</html>

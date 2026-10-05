@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a23crypt: change one byte</title>
+<meta name="description" content="A real a23crypt ciphertext, sealed in your browser. Flip any bit, truncate it, reorder its frames, and see which defence catches you.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2216%22 height=%2232%22 fill=%22%231f35d6%22/%3E%3Crect x=%2216%22 width=%2216%22 height=%2232%22 fill=%22%23000%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600;800&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --white: #ffffff;
+    --black: #000000;
+    --yellow: #ffd400;
+    --grey: #6b6b6b;
+    --hair: #d6d6d6;
+    --hdr: #ececec;
+    --sans: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+    --mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+    --pad: clamp(20px, 4vw, 56px);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--sans); font-size: 18px; line-height: 1.5; color: var(--black); background: var(--white); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-underline-offset: 3px; }
+  :focus-visible { outline: 3px solid var(--black); outline-offset: 2px; box-shadow: 0 0 0 6px var(--yellow); }
+  code { font-family: var(--mono); font-size: .9em; }
+
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px var(--pad); border-bottom: 6px solid var(--black); }
+  .top .brand { font-weight: 800; font-size: 22px; text-decoration: none; letter-spacing: -.02em; }
+  .top nav { display: flex; gap: 24px; align-items: center; font-weight: 600; font-size: 16px; }
+  .top nav a { text-decoration: none; }
+  .top nav a:hover { text-decoration: underline; }
+  .copy { font: 600 15px var(--mono); background: var(--black); color: var(--white); border: 0; padding: 9px 14px; cursor: copy; }
+  .copy:hover { background: var(--yellow); color: var(--black); }
+
+  /* ---------- lab ---------- */
+  .lab { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); border-bottom: 6px solid var(--black); }
+  .brief { padding: clamp(36px, 6vh, 72px) var(--pad); border-right: 2px solid var(--black); display: flex; flex-direction: column; }
+  h1 { font-weight: 800; font-size: clamp(56px, 7.2vw, 120px); line-height: .9; letter-spacing: -.045em; margin: 0 0 30px; }
+  .brief .lede { font-size: 20px; max-width: 26em; margin: 0 0 36px; }
+  .tally { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--black); }
+  .tally div { padding: 16px 0 4px; }
+  .tally div + div { border-left: 2px solid var(--black); padding-left: 20px; }
+  .tally b { display: block; font: 800 clamp(48px, 5vw, 80px)/1 var(--mono); letter-spacing: -.04em; }
+  .tally span { font-size: 15px; display: block; }
+  .tally .zero b { background: var(--yellow); display: inline-block; padding: 0 8px; }
+
+  .bench { padding: clamp(28px, 5vh, 56px) var(--pad); display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+  .bench-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; font-size: 15px; }
+  .bench-head b { font-size: 17px; }
+  .msg-edit { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+  .msg-edit input { font: 600 15px var(--sans); border: 0; border-bottom: 2px solid var(--black); padding: 4px 2px; width: min(340px, 50vw); background: transparent; }
+  .msg-edit input:focus-visible { box-shadow: none; outline: none; background: var(--yellow); }
+
+  .grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); border-top: 2px solid var(--black); border-left: 2px solid var(--black); }
+  .cell {
+    appearance: none;
+    font: 600 clamp(12px, 1.15vw, 17px) var(--mono);
+    aspect-ratio: 1.25;
+    border: 0;
+    border-right: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    background: var(--white);
+    color: var(--black);
+    padding: 0;
+    cursor: crosshair;
+    position: relative;
+  }
+  .cell:nth-child(16n) { border-right: 2px solid var(--black); }
+  .cell.h { background: var(--hdr); }
+  .cell.len { background: repeating-linear-gradient(135deg, var(--hdr) 0 4px, var(--white) 4px 8px); }
+  .cell.tag { box-shadow: inset 0 -4px 0 var(--black); }
+  .cell:hover { background: var(--black); color: var(--white); }
+  .cell.flipped { background: var(--yellow); color: var(--black); font-weight: 800; }
+  .cell.flipped::after { content: ""; position: absolute; inset: 3px; border: 2px solid var(--black); }
+  .cell:focus-visible { z-index: 1; }
+  .grid-end { grid-column: span var(--rest); border-bottom: 2px solid var(--black); border-right: 2px solid var(--black); background: repeating-linear-gradient(45deg, transparent 0 6px, var(--hair) 6px 7px); }
+
+  .keyline { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; color: var(--grey); }
+  .keyline i { display: inline-block; width: 18px; height: 14px; vertical-align: -2px; margin-right: 6px; border: 1px solid var(--black); font-style: normal; }
+  .keyline .k-h { background: var(--hdr); }
+  .keyline .k-l { background: repeating-linear-gradient(135deg, var(--hdr) 0 3px, var(--white) 3px 6px); }
+  .keyline .k-b { background: var(--white); }
+  .keyline .k-t { background: var(--white); box-shadow: inset 0 -3px 0 var(--black); }
+  .inspector { font-size: 15px; min-height: 1.5em; }
+  .inspector b { font-family: var(--mono); }
+
+  .verdict { padding: 22px 24px; border: 2px solid var(--black); display: grid; grid-template-columns: auto 1fr; gap: 6px 22px; align-items: baseline; min-height: 118px; }
+  .verdict .word { font-weight: 800; font-size: clamp(34px, 3.4vw, 52px); line-height: 1; letter-spacing: -.035em; grid-row: span 2; }
+  .verdict .err { font: 800 17px var(--mono); }
+  .verdict .why { font-size: 16px; }
+  .verdict.caught { background: var(--black); color: var(--white); }
+  .verdict.caught .err { color: var(--yellow); }
+  .verdict.caught.pulse { animation: pulse .5s ease-out; }
+  @keyframes pulse { from { box-shadow: 0 0 0 10px var(--yellow); } to { box-shadow: 0 0 0 0 var(--yellow); } }
+  .verdict.opened { background: var(--white); }
+  .verdict.warn { background: var(--yellow); }
+  .bench-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { font: 800 15px var(--sans); background: var(--white); color: var(--black); border: 2px solid var(--black); padding: 10px 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn:hover { background: var(--yellow); }
+  .btn.solid { background: var(--black); color: var(--white); }
+  .btn.solid:hover { background: var(--yellow); color: var(--black); }
+
+  /* ---------- attacks ---------- */
+  .wrap { padding: 0 var(--pad); }
+  section.block { padding: clamp(72px, 9vw, 128px) 0 0; }
+  .block-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: end; margin-bottom: 36px; }
+  .block-head h2 { margin: 0; font-weight: 800; font-size: clamp(40px, 5vw, 76px); line-height: .95; letter-spacing: -.04em; }
+  .block-head p { margin: 0; max-width: 36em; }
+
+  .attacks { width: 100%; border-collapse: collapse; font-size: 16px; }
+  .attacks th { text-align: left; font-size: 14px; font-weight: 600; color: var(--grey); padding: 10px 14px 10px 0; border-bottom: 2px solid var(--black); }
+  .attacks td { padding: 16px 14px 16px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  .attacks td:first-child { width: 30%; }
+  .attacks td:nth-child(2) { width: 30%; }
+  .attacks .run { font: 800 16px var(--sans); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+  .attacks .run:hover { background: var(--yellow); }
+  .attacks .out { font-size: 15px; }
+  .attacks .out .e { font: 800 15px var(--mono); display: block; }
+  .attacks tr.done.caught .out .e { background: var(--black); color: var(--yellow); display: table; padding: 1px 6px; margin-bottom: 6px; }
+  .attacks tr.done.opened .out .e { background: var(--yellow); display: table; padding: 1px 6px; margin-bottom: 6px; }
+  .attacks .pending { color: var(--grey); }
+  .run-all { margin-top: 22px; }
+
+  /* why */
+  .mech { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--black); }
+  .mech div { padding: 22px 24px 26px 0; }
+  .mech div:not(:nth-child(3n+1)) { border-left: 1px solid var(--hair); padding-left: 24px; }
+  .mech h3 { margin: 0 0 8px; font-size: 21px; font-weight: 800; letter-spacing: -.01em; line-height: 1.2; }
+  .mech p { margin: 0; font-size: 16px; }
+
+  /* code + numbers */
+  .two { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 48px; }
+  pre { margin: 0; padding: 22px; font: 400 14px/1.7 var(--mono); background: var(--black); color: var(--white); overflow-x: auto; }
+  pre .k { color: var(--yellow); }
+  pre .c { color: #9a9a9a; }
+  .nums { border-top: 2px solid var(--black); }
+  .nums div { padding: 16px 0; border-bottom: 1px solid var(--hair); display: grid; grid-template-columns: 9ch 1fr; gap: 16px; align-items: baseline; }
+  .nums b { font: 800 34px/1 var(--mono); letter-spacing: -.04em; }
+  .nums span { font-size: 16px; }
+
+  .limits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--black); }
+  .limits div { padding: 20px 24px 24px 0; border-bottom: 1px solid var(--hair); }
+  .limits div:not(:nth-child(3n+1)) { border-left: 1px solid var(--hair); padding-left: 24px; }
+  .limits h3 { margin: 0 0 6px; font-size: 19px; font-weight: 800; }
+  .limits p { margin: 0; font-size: 16px; }
+
+  .end { margin-top: clamp(80px, 10vw, 140px); border-top: 6px solid var(--black); padding: 48px var(--pad) 32px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; }
+  .end h2 { margin: 0; font-weight: 800; font-size: clamp(44px, 6vw, 96px); line-height: .9; letter-spacing: -.045em; }
+  .end .acts { display: flex; gap: 12px; flex-wrap: wrap; }
+  .end .copy { font-size: 18px; padding: 14px 18px; }
+  footer { padding: 0 var(--pad) 36px; font-size: 14px; color: var(--grey); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 1000px) {
+    .lab { grid-template-columns: 1fr; }
+    .brief { border-right: 0; border-bottom: 2px solid var(--black); }
+    .tally { margin-top: 12px; }
+    .block-head, .two { grid-template-columns: 1fr; gap: 18px; }
+    .mech, .limits { grid-template-columns: 1fr; }
+    .mech div:not(:nth-child(3n+1)), .limits div:not(:nth-child(3n+1)) { border-left: 0; padding-left: 0; }
+    .attacks thead { display: none; }
+    .attacks tr { display: grid; border-bottom: 1px solid var(--hair); padding: 12px 0; }
+    .attacks td { border: 0; padding: 2px 0; width: auto !important; }
+    .end { grid-template-columns: 1fr; }
+    .top nav a { display: none; }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .cell:nth-child(16n) { border-right: 1px solid var(--hair); }
+    .cell:nth-child(8n) { border-right: 2px solid var(--black); }
+    .cell { font-size: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#">a23crypt</a>
+  <nav aria-label="Primary">
+    <a href="#attacks">Attacks</a>
+    <a href="#use">Use it</a>
+    <a href="https://github.com/a23one/a23crypt">GitHub</a>
+    <button class="copy" data-copy="uv add a23crypt">uv add a23crypt</button>
+  </nav>
+</header>
+
+<main>
+  <div class="lab">
+    <div class="brief">
+      <h1>Change one byte. Any byte.</h1>
+      <p class="lede">This is a real a23crypt ciphertext, sealed in your browser a moment ago with two keys you'll never see. Click any byte to flip a bit, then watch the decryption fail and see which defence caught it.</p>
+      <div class="tally" aria-live="polite">
+        <div><b id="n-tries">0</b><span>tampered versions tried</span></div>
+        <div class="zero"><b id="n-open">0</b><span>of them opened</span></div>
+      </div>
+    </div>
+
+    <div class="bench">
+      <div class="bench-head">
+        <b id="ct-size">Ciphertext</b>
+        <label class="msg-edit">Sealing <input id="msg" value="Meet at the north gate at six." maxlength="120" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div class="grid" id="grid" role="group" aria-label="Ciphertext bytes. Use arrow keys to move and Enter to flip a bit."></div>
+      <div class="keyline" aria-hidden="true">
+        <span><i class="k-h"></i>Header, stored in the clear</span>
+        <span><i class="k-l"></i>Frame length</span>
+        <span><i class="k-b"></i>Sealed body</span>
+        <span><i class="k-t"></i>Poly1305 tag</span>
+      </div>
+      <div class="inspector" id="inspector">Point at a byte to see what it is.</div>
+      <div class="verdict opened" id="verdict" aria-live="polite"></div>
+      <div class="bench-actions">
+        <button class="btn solid" id="flip-random">Flip a random bit</button>
+        <button class="btn" id="reset">Put every byte back</button>
+        <button class="btn" id="reseal">Seal again with a new salt</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="block" id="attacks">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>Or try what an attacker would.</h2>
+        <p>Each row runs a real attack against a fresh ciphertext in this tab. The frame attacks use a 150 KB file, sealed as three 64 KiB frames, because you need more than one frame to reorder them.</p>
+      </div>
+      <table class="attacks">
+        <thead><tr><th>Attack</th><th>What it tries</th><th>Outcome</th></tr></thead>
+        <tbody id="attack-rows"></tbody>
+      </table>
+      <button class="btn solid run-all" id="run-all">Run every attack</button>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>Why nothing gets through.</h2>
+        <p>Defences overlap on purpose, so an attack has to beat several of them at once.</p>
+      </div>
+      <div class="mech">
+        <div><h3>Two authentication tags</h3><p>Poly1305 on the outside and GCM on the inside. Any change to a sealed byte fails at least one of them.</p></div>
+        <div><h3>Position is part of the seal</h3><p>Each frame's tags cover its index, whether it is the final frame, the flags and the chunk size. Reordered, duplicated or relabelled frames don't verify.</p></div>
+        <div><h3>Keys are per record, per encryption</h3><p>Subkeys come from HKDF over the record key and a fresh salt. A frame lifted from another record, or another seal of the same record, belongs to different keys.</p></div>
+        <div><h3>A final frame is required</h3><p>Decryption refuses a stream that ends without a frame marked final, so cutting the tail off is detected, not silently accepted.</p></div>
+        <div><h3>Sizes are capped before allocation</h3><p>Length prefixes over 128 KiB are rejected before any memory is reserved. Decompression stops at the chunk size, which defuses zstd bombs.</p></div>
+        <div><h3>Errors don't leak which layer failed</h3><p>The library raises a uniform <code>DecryptionError</code>. This page names the layer to show the cascade working; your logs won't.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="use">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>Use it.</h2>
+        <p>Four keyword-only functions. Bytes up to 1 MiB, or streams of any size in constant memory. Python 3.14 and later.</p>
+      </div>
+      <div class="two">
+<pre><span class="k">import</span> os, a23crypt
+
+server_key = os.urandom(<span class="k">32</span>)   <span class="c"># held by your server</span>
+client_key = os.urandom(<span class="k">32</span>)   <span class="c"># held by your user</span>
+
+sealed = a23crypt.encrypt(
+    <span class="k">b"Meet at the north gate at six."</span>,
+    server_key=server_key,
+    client_key=client_key,
+    record_key=<span class="k">b"msg-0417"</span>,
+)
+
+<span class="k">try</span>:
+    a23crypt.decrypt(sealed, server_key=server_key,
+                     client_key=client_key, record_key=<span class="k">b"msg-0417"</span>)
+<span class="k">except</span> a23crypt.A23CryptError:
+    ...  <span class="c"># IntegrityError, DecryptionError, ...</span></pre>
+        <div class="nums">
+          <div><b>266</b><span>tests, written as attacks: truncation, bit flips, frame reorder and substitution, header tampering, oversized lengths, compression bombs.</span></div>
+          <div><b>100%</b><span>line coverage, in about half a second.</span></div>
+          <div><b>255</b><span>MiB/s for large payloads on an Apple M4 Max. Reproduce with <a href="https://github.com/a23one/a23crypt/blob/main/benchmarks/bench_noise.py"><code>bench_noise.py</code></a>.</span></div>
+          <div><b id="n-open-2">0</b><span>tampered ciphertexts opened on this page so far. Keep trying.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="block-head">
+        <h2>What it won't stop.</h2>
+        <p>You found one already if you ran the replay attack. Here are the rest.</p>
+      </div>
+      <div class="limits">
+        <div><h3>Replays</h3><p>An untouched ciphertext opens every time. Put a nonce or timestamp in the plaintext and track it.</p></div>
+        <div><h3>A leaked key</h3><p>If one party's key leaks, that party's protection is gone. The other key still holds.</p></div>
+        <div><h3>Attacks in transit</h3><p>This is at-rest encryption. Use TLS on the wire.</p></div>
+        <div><h3>Weak passwords</h3><p>Stretch passwords with Argon2id first and pass the 32-byte result.</p></div>
+        <div><h3>Memory scraping</h3><p>Decrypted bytes stay on the Python heap and are not wiped.</p></div>
+        <div><h3>Half-written streams</h3><p>A failed <code>decrypt_stream</code> may leave earlier chunks behind. The bytes API is atomic.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="end">
+    <h2>Seal something real.</h2>
+    <div class="acts">
+      <button class="copy" data-copy="uv add a23crypt">uv add a23crypt</button>
+      <a class="btn" href="https://github.com/a23one/a23crypt">Read the source</a>
+      <a class="btn" href="https://pypi.org/project/a23crypt/">PyPI</a>
+    </div>
+  </div>
+  <footer><span>a23crypt 0.2.0. MIT License.</span><span>Copyright 2026 Aditya Dedhia.</span></footer>
+</main>
+
+<script type="module">
+  import * as a23 from "../../public/shared/a23crypt.js";
+
+  const $ = (s) => document.querySelector(s);
+  const serverKey = a23.randomBytes(32);
+  const clientKey = a23.randomBytes(32);
+  const recordKey = a23.utf8("msg-0417");
+  const keys = { serverKey, clientKey, recordKey };
+
+  let sealed;        // { ciphertext, spans, ... }
+  let working;       // the bytes as the user has edited them
+  const flipped = new Set();
+  const stats = { tries: 0, opened: 0 };
+
+  const FIELD_TEXT = {
+    version: "the format version. Stored in the clear.",
+    flags: "the flags byte: compression level. Stored in the clear, and bound into every tag.",
+    chunk_size: "the chunk size. Stored in the clear, and bound into every tag.",
+    rk_len: "the record key's length. Stored in the clear.",
+    record_key: "the record key. Stored in the clear and checked against the one you pass in.",
+    salt: "the per-encryption salt. Not secret, but it feeds every subkey.",
+    frame_len: "the frame's length prefix. Capped before any memory is allocated.",
+    frame_body: "the sealed body: client seal over noise over server seal.",
+    poly1305_tag: "the outer Poly1305 tag.",
+  };
+  const DEFENCE = {
+    "outer ChaCha20-Poly1305 tag": "The outer Poly1305 tag didn't match, so nothing beneath it was even attempted.",
+    "inner AES-256-GCM tag": "The outer seal opened, but the inner GCM tag didn't match.",
+    "record_key binding": "The record key in the header doesn't match the one passed to decrypt.",
+    "version byte check": "The version byte names a format this library doesn't speak.",
+    "header parser": "The header ended early.",
+    "frame parser": "A frame is shorter than its length prefix says.",
+    "frame size cap": "The length prefix is over the 128 KiB cap, so it was rejected before allocating anything.",
+    "header size cap": "The record key length is over the 4 KiB cap.",
+    "final-chunk check": "No frame was marked final, so the stream was treated as truncated.",
+  };
+
+  const fieldAt = (i) => sealed.spans.find((s) => i >= s.start && i < s.end);
+
+  function attempt(bytes, k = keys) {
+    try {
+      return { ok: true, text: a23.text(a23.decrypt(bytes, k)) };
+    } catch (e) {
+      return { ok: false, error: e };
+    }
+  }
+
+  function renderGrid() {
+    const ct = working;
+    const grid = $("#grid");
+    grid.innerHTML = "";
+    ct.forEach((b, i) => {
+      const s = fieldAt(i);
+      const btn = document.createElement("button");
+      btn.className = "cell" + (["version", "flags", "chunk_size", "rk_len", "record_key", "salt"].includes(s.field) ? " h" : s.field === "frame_len" ? " len" : s.field === "poly1305_tag" ? " tag" : "") + (flipped.has(i) ? " flipped" : "");
+      btn.textContent = b.toString(16).padStart(2, "0");
+      btn.dataset.i = i;
+      btn.tabIndex = i === 0 ? 0 : -1;
+      btn.setAttribute("aria-label", `Byte ${i}, ${s.field}, value ${btn.textContent}${flipped.has(i) ? ", flipped" : ""}`);
+      grid.append(btn);
+    });
+    const rest = (16 - (ct.length % 16)) % 16;
+    if (rest) {
+      const end = document.createElement("div");
+      end.className = "grid-end";
+      end.style.setProperty("--rest", rest);
+      grid.append(end);
+    }
+    $("#ct-size").textContent = `${ct.length} bytes of ciphertext`;
+  }
+
+  function inspect(i) {
+    const s = fieldAt(i);
+    const off = i - s.start;
+    $("#inspector").innerHTML = `Byte <b>${i}</b> is byte ${off + 1} of ${s.end - s.start} in <b>${s.field}</b>: ${FIELD_TEXT[s.field]}`;
+  }
+
+  function judge(pulse = true) {
+    const v = $("#verdict");
+    const r = attempt(working);
+    v.className = "verdict";
+    if (flipped.size === 0) {
+      v.classList.add("opened");
+      v.innerHTML = `<span class="word">Intact.</span><span class="err">Opens to “${esc(r.text)}”</span><span class="why">Both keys present, nothing changed. Now change something.</span>`;
+      return;
+    }
+    stats.tries++;
+    if (r.ok) stats.opened++;
+    $("#n-tries").textContent = stats.tries;
+    $("#n-open").textContent = $("#n-open-2").textContent = stats.opened;
+    if (r.ok) {
+      v.classList.add("warn");
+      v.innerHTML = `<span class="word">Opened.</span><span class="err">${esc(r.text)}</span><span class="why">That should never happen. Please report it.</span>`;
+      return;
+    }
+    v.classList.add("caught");
+    if (pulse) { void v.offsetWidth; v.classList.add("pulse"); }
+    const n = flipped.size;
+    v.innerHTML = `<span class="word">Caught.</span><span class="err">${r.error.name}: ${esc(r.error.message)}</span><span class="why">${DEFENCE[r.error.detail] ?? ""} ${n} bit${n > 1 ? "s" : ""} changed.</span>`;
+  }
+
+  function flip(i, bit = 0) {
+    working[i] ^= 1 << bit;
+    if (working[i] === sealed.ciphertext[i]) flipped.delete(i);
+    else flipped.add(i);
+    renderGrid();
+    judge();
+    const cell = $(`#grid .cell[data-i="${i}"]`);
+    cell.tabIndex = 0;
+    $("#grid .cell[tabindex='0']:not([data-i='" + i + "'])")?.setAttribute("tabindex", "-1");
+    return cell;
+  }
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  function seal() {
+    sealed = a23.encrypt(a23.utf8($("#msg").value), keys);
+    working = sealed.ciphertext.slice();
+    flipped.clear();
+    renderGrid();
+    judge(false);
+  }
+
+  const grid = $("#grid");
+  grid.addEventListener("click", (e) => {
+    const c = e.target.closest(".cell");
+    if (c) flip(+c.dataset.i).focus();
+  });
+  grid.addEventListener("pointerover", (e) => {
+    const c = e.target.closest(".cell");
+    if (c) inspect(+c.dataset.i);
+  });
+  grid.addEventListener("focusin", (e) => {
+    const c = e.target.closest(".cell");
+    if (c) inspect(+c.dataset.i);
+  });
+  grid.addEventListener("keydown", (e) => {
+    const c = e.target.closest(".cell");
+    if (!c) return;
+    const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
+    const moves = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols };
+    if (!(e.key in moves)) return;
+    e.preventDefault();
+    const next = Math.min(working.length - 1, Math.max(0, +c.dataset.i + moves[e.key]));
+    const n = grid.querySelector(`.cell[data-i="${next}"]`);
+    c.tabIndex = -1;
+    n.tabIndex = 0;
+    n.focus();
+  });
+
+  $("#flip-random").addEventListener("click", () => {
+    const i = crypto.getRandomValues(new Uint32Array(1))[0] % working.length;
+    const bit = crypto.getRandomValues(new Uint8Array(1))[0] & 7;
+    flip(i, bit);
+    inspect(i);
+  });
+  $("#reset").addEventListener("click", () => {
+    working = sealed.ciphertext.slice();
+    flipped.clear();
+    renderGrid();
+    judge(false);
+  });
+  $("#reseal").addEventListener("click", seal);
+  $("#msg").addEventListener("input", seal);
+
+  // ---------- scripted attacks ----------
+  const big = new Uint8Array(150_000).map((_, i) => (i * 131 + 7) & 255);
+  let bigSealed;
+  const bigFrames = () => {
+    bigSealed ??= a23.encrypt(big, keys);
+    const s = bigSealed.spans;
+    const hdrEnd = s.find((x) => x.field === "salt").end;
+    const frames = [];
+    for (const f of s.filter((x) => x.field === "frame_len")) {
+      const end = s.find((x) => x.field === "poly1305_tag" && x.frame === f.frame).end;
+      frames.push(bigSealed.ciphertext.subarray(f.start, end));
+    }
+    return { hdr: bigSealed.ciphertext.subarray(0, hdrEnd), frames };
+  };
+  const smallParts = () => {
+    const ct = sealed.ciphertext;
+    const hdrEnd = sealed.spans.find((x) => x.field === "salt").end;
+    return { ct, hdrEnd };
+  };
+
+  const ATTACKS = [
+    { name: "Cut off the last byte", what: "Truncate the file by one byte, as a failed upload would.",
+      run: () => attempt(smallParts().ct.slice(0, -1)) },
+    { name: "Keep only the header", what: "Strip every frame and hope an empty result is accepted.",
+      run: () => { const { ct, hdrEnd } = smallParts(); return attempt(ct.slice(0, hdrEnd)); } },
+    { name: "Drop the final frame", what: "Remove the last of three frames so the file looks complete but shorter.",
+      run: () => { const { hdr, frames } = bigFrames(); return attempt(a23.concat(hdr, frames[0], frames[1])); } },
+    { name: "Swap two frames", what: "Exchange frames one and two.",
+      run: () => { const { hdr, frames } = bigFrames(); return attempt(a23.concat(hdr, frames[1], frames[0], frames[2])); } },
+    { name: "Duplicate a frame", what: "Play frame one twice.",
+      run: () => { const { hdr, frames } = bigFrames(); return attempt(a23.concat(hdr, frames[0], frames[0], frames[1], frames[2])); } },
+    { name: "Splice in another seal", what: "Seal the same message again with the same keys and record key, then graft its body onto this header.",
+      run: () => {
+        const { ct, hdrEnd } = smallParts();
+        const other = a23.encrypt(a23.utf8($("#msg").value), keys).ciphertext;
+        return attempt(a23.concat(ct.subarray(0, hdrEnd), other.subarray(hdrEnd)));
+      } },
+    { name: "Relabel the record", what: "Edit the record key in the header so the file claims to be another record.",
+      run: () => { const ct = smallParts().ct.slice(); ct[10] ^= 1; return attempt(ct); } },
+    { name: "Claim it's compressed", what: "Set the flags byte to zstd level 3 so the decoder takes a different path.",
+      run: () => { const ct = smallParts().ct.slice(); ct[1] = 3; return attempt(ct); } },
+    { name: "Inflate a length prefix", what: "Claim the frame is 4 GB, to make the reader allocate it.",
+      run: () => { const { ct, hdrEnd } = smallParts(); const t = ct.slice(); t.set([0xff, 0xff, 0xff, 0xff], hdrEnd); return attempt(t); } },
+    { name: "Open with the server key alone", what: "You've breached the server. Guess the client key.",
+      run: () => attempt(smallParts().ct, { ...keys, clientKey: a23.randomBytes(32) }) },
+    { name: "Open with the client key alone", what: "You've stolen the user's device. Guess the server key.",
+      run: () => attempt(smallParts().ct, { ...keys, serverKey: a23.randomBytes(32) }) },
+    { name: "Replay it unchanged", what: "Present the original ciphertext a second time.", replay: true,
+      run: () => attempt(smallParts().ct) },
+  ];
+
+  const rows = $("#attack-rows");
+  ATTACKS.forEach((a, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><button class="run" data-i="${i}">${a.name}</button></td><td>${a.what}</td><td class="out"><span class="pending">Not run yet</span></td>`;
+    rows.append(tr);
+  });
+
+  function runAttack(i) {
+    const a = ATTACKS[i];
+    const r = a.run();
+    const tr = rows.children[i];
+    tr.className = "done " + (r.ok ? "opened" : "caught");
+    const out = tr.querySelector(".out");
+    if (r.ok && a.replay) {
+      out.innerHTML = `<span class="e">Opened</span>Replays aren't detected, by design and in the docs. Put a nonce or timestamp inside the plaintext if you need to refuse them.`;
+    } else if (r.ok) {
+      stats.opened++;
+      out.innerHTML = `<span class="e">Opened</span>This should never happen. Please report it.`;
+    } else {
+      out.innerHTML = `<span class="e">${r.error.name}</span>${DEFENCE[r.error.detail] ?? esc(r.error.message)}`;
+    }
+    if (!a.replay) {
+      stats.tries++;
+      $("#n-tries").textContent = stats.tries;
+      $("#n-open").textContent = $("#n-open-2").textContent = stats.opened;
+    }
+  }
+  rows.addEventListener("click", (e) => {
+    const b = e.target.closest(".run");
+    if (b) runAttack(+b.dataset.i);
+  });
+  $("#run-all").addEventListener("click", () => ATTACKS.forEach((_, i) => runAttack(i)));
+
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const t = b.textContent;
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; } catch { b.textContent = "Select and copy"; }
+    setTimeout(() => (b.textContent = t), 1500);
+  }));
+
+  seal();
+</script>
+</body>
+</html>

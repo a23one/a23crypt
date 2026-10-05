@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a23crypt landing page concepts</title>
+<style>
+  body { margin: 0; font: 17px/1.5 system-ui, sans-serif; color: #111; background: #fff; }
+  main { max-width: 760px; margin: 0 auto; padding: 64px 24px; }
+  h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -.02em; }
+  p { margin: 0 0 32px; color: #444; }
+  ol { list-style: none; padding: 0; margin: 0; border-top: 1px solid #ddd; }
+  li { border-bottom: 1px solid #ddd; }
+  a { display: grid; grid-template-columns: 56px 1fr; gap: 18px; padding: 20px 0; text-decoration: none; color: inherit; }
+  a:hover h2 { text-decoration: underline; }
+  a:focus-visible { outline: 3px solid #1f35d6; outline-offset: 4px; }
+  .sw { height: 56px; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  span { color: #555; font-size: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>a23crypt landing page concepts</h1>
+  <p>Three directions. Each runs a JavaScript port of the a23crypt wire format, so every ciphertext on these pages is real and opens in Python.</p>
+  <ol>
+    <li><a href="two-keys/"><div class="sw" style="background:linear-gradient(90deg,#1f35d6 50%,#fff 50%);border:1px solid #1f35d6"></div><div><h2>Two keys</h2><span>Split custody as the whole identity. The page is split down the middle between server and client. Take either key away and watch the record stay shut.</span></div></a></li>
+    <li><a href="strata/"><div class="sw" style="background:linear-gradient(#dce6ea 20%,#4b3a2c 20% 40%,#d7a84e 40% 60%,#8e8a80 60% 70%,#3f5266 70% 85%,#1b1f24 85%)"></div><div><h2>Strata</h2><span>Defence in depth as a geological cross-section. Scroll down through the real bytes of your message at each layer until you reach the plaintext as bedrock.</span></div></a></li>
+    <li><a href="break-it/"><div class="sw" style="background:#000;box-shadow:inset 0 -14px 0 #ffd400"></div><div><h2>Break it</h2><span>A tamper lab. The hero is a ciphertext as a grid of bytes. Flip any bit or run the README's attacks and see which defence catches each one.</span></div></a></li>
+  </ol>
+</main>
+</body>
+</html>

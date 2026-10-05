@@ -1,0 +1,13 @@
+{
+  "name": "a23crypt-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "concepts": "bunx serve ."
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

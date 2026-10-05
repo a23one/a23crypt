@@ -15,3 +15,7 @@ wheels/
 # Test artifacts
 .coverage
 .pytest_cache/
+
+# site
+site/node_modules/
+site/.wrangler/
