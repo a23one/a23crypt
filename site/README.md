@@ -1,4 +1,4 @@
-# a23crypt.a23.one
+# a23crypt.dev
 
 The landing page. Plain HTML with no build step, served by Cloudflare
 Workers static assets.
