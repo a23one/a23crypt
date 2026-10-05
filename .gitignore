@@ -19,3 +19,4 @@ wheels/
 # site
 site/node_modules/
 site/.wrangler/
+site/bun.lock
