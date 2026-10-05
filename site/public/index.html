@@ -244,21 +244,31 @@
   pre .c { color: #7f87b8; }
 
   /* proof */
-  .proof { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--cobalt); }
+  .proof { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--cobalt); }
   .proof > div { padding: 26px 26px 26px 0; }
   .proof > div + div { padding-left: 26px; border-left: 1px solid var(--rule); }
-  .proof b { display: block; font-size: clamp(40px, 4.4vw, 60px); font-weight: 850; font-stretch: 118%; letter-spacing: -.035em; line-height: 1; color: var(--cobalt); margin-bottom: 10px; }
+  .proof b { display: block; white-space: nowrap; font-size: clamp(40px, 4.4vw, 60px); font-weight: 850; font-stretch: 118%; letter-spacing: -.035em; line-height: 1; color: var(--cobalt); margin-bottom: 10px; }
+  .proof b small { font-size: .45em; letter-spacing: 0; }
   .proof p { margin: 0; font-size: 16px; }
   .interop { margin-top: 48px; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: 40px; align-items: start; }
   .interop h3 { margin: 0 0 12px; font-size: 26px; font-weight: 800; font-stretch: 112%; letter-spacing: -.01em; color: var(--cobalt); line-height: 1.1; }
   .interop p { margin: 0 0 18px; }
-  .interop pre { background: var(--cobalt-deep); color: #dfe3ff; max-height: 260px; font-size: 12px; word-break: break-all; white-space: pre-wrap; }
+  .interop-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .snippet { margin: 0; border: 2px solid var(--cobalt); min-width: 0; }
+  .snippet figcaption { padding: 10px 20px; font-weight: 700; font-size: 14px; background: var(--mist); border-bottom: 1px solid var(--rule); }
+  .snippet pre { font-size: 13px; line-height: 1.75; }
+  .snippet .prompt { color: #7f87b8; user-select: none; }
+  .snippet .out { display: block; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--rule); color: var(--cobalt); font-weight: 700; }
 
-  /* limits */
-  .limits { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 56px; }
-  .limits li { break-inside: avoid; padding: 18px 0; border-top: 1px solid var(--rule); }
-  .limits b { display: block; font-size: 19px; font-weight: 800; font-stretch: 108%; margin-bottom: 4px; }
-  .limits p { margin: 0; font-size: 16px; }
+  /* faq */
+  .faq { border-top: 2px solid var(--cobalt); max-width: 880px; }
+  .faq details { border-bottom: 1px solid var(--rule); }
+  .faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 24px; padding: 20px 0; font-size: 20px; font-weight: 800; font-stretch: 108%; letter-spacing: -.01em; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--cobalt); font-weight: 600; }
+  .faq details[open] summary::after { content: "\2212"; }
+  .faq summary:hover { color: var(--cobalt); }
+  .faq details p { margin: -6px 0 22px; max-width: 42em; }
 
   /* closing split */
   .closing {
@@ -391,9 +401,9 @@
     .rec.head { display: none; }
     .code-grid { grid-template-columns: 1fr; }
     .code-grid figure + figure { border-left: 0; border-top: 2px solid var(--cobalt); }
-    .proof { grid-template-columns: 1fr; }
-    .proof > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
-    .limits { columns: 1; }
+    .proof { grid-template-columns: 1fr 1fr; }
+    .proof > div, .proof > div + div { padding: 20px 16px 20px 0; border-left: 0; border-bottom: 1px solid var(--rule); }
+    .proof b { white-space: normal; }
     .closing { background: var(--cobalt); }
     .closing .wrap { grid-template-columns: 1fr; }
     .closing .half, .closing .half + .half { padding: 40px 0; }
@@ -587,42 +597,51 @@ a23crypt.decrypt(
     </div>
   </section>
 
-  <section>
+  <section id="numbers">
     <div class="wrap">
       <div class="sec-head">
-        <h2>Checked from every side.</h2>
-        <p>The test suite attacks the format the way an adversary would: truncation, bit flips at every position, frame reordering, duplicated and substituted frames, header tampering, oversized length prefixes and compression bombs.</p>
+        <h2>What it costs you.</h2>
+        <p>Measured on an Apple M4 Max with Python 3.14, against Fernet, the usual way to encrypt data in Python. Run <a href="https://github.com/a23one/a23crypt/blob/main/benchmarks/bench_compare.py"><code>benchmarks/bench_compare.py</code></a> to check them on your own hardware.</p>
       </div>
       <div class="proof">
-        <div><b>266</b><p>tests, running in about half a second.</p></div>
-        <div><b>100%</b><p>line coverage across the library.</p></div>
-        <div><b>255 MiB/s</b><p>for large payloads on an Apple M4 Max, with the noise layer vectorised in numpy.</p></div>
+        <div><b>0.39<small>×</small></b><p>the original size, for an 871-byte JSON record sealed with compression on. Fernet's output for the same record is 1.44×.</p></div>
+        <div><b>27<small> µs</small></b><p>to seal a 1 KiB record. That's about 37,000 records a second on one core.</p></div>
+        <div><b>265<small> MiB/s</small></b><p>when streaming large files, in constant memory, 64 KiB at a time.</p></div>
+        <div><b>453</b><p>lines of library code, on two dependencies: pyca/cryptography and numpy.</p></div>
       </div>
       <div class="interop">
         <div>
-          <h3>Don't take this page's word for it.</h3>
-          <p>The demo above runs a JavaScript port of the same wire format. Paste this into Python with a23crypt installed and it opens the exact ciphertext sealed in your browser.</p>
-          <button class="btn" id="copy-py">Copy Python snippet</button>
+          <h3>Check it in Python.</h3>
+          <p>The demo above runs a JavaScript port of the wire format. This command opens the exact record sealed in your browser with the real library. All it needs is <a href="https://docs.astral.sh/uv/">uv</a>: nothing to install first.</p>
+          <div class="interop-actions">
+            <button class="btn" id="copy-uv">Copy terminal command</button>
+            <button class="btn ghost" id="copy-py">Copy Python only</button>
+          </div>
         </div>
-        <pre class="mono" id="py"></pre>
+        <figure class="snippet">
+          <figcaption>Terminal</figcaption>
+          <pre id="py"></pre>
+        </figure>
       </div>
     </div>
   </section>
 
-  <section>
+  <section id="faq">
     <div class="wrap">
       <div class="sec-head">
-        <h2>What it won't do.</h2>
-        <p>Knowing where a tool stops is part of using it safely.</p>
+        <h2>Questions.</h2>
+        <p>Short answers. The <a href="https://github.com/a23one/a23crypt#readme">README</a> covers the wire format and threat model in full.</p>
       </div>
-      <ul class="limits">
-        <li><b>Save a compromised endpoint.</b><p>If one party's key leaks, that party's protection is gone. The other key still holds.</p></li>
-        <li><b>Detect replays.</b><p>A valid ciphertext opens every time it's presented. Put a nonce or timestamp inside the plaintext if you need replay protection.</p></li>
-        <li><b>Wipe memory.</b><p>Decrypted bytes live on the Python heap and are not zeroed.</p></li>
-        <li><b>Replace TLS.</b><p>This is at-rest encryption for records and files, not a transport protocol.</p></li>
-        <li><b>Stretch passwords.</b><p>Derive 32-byte keys with Argon2id first, then pass them in.</p></li>
-        <li><b>Undo partial writes.</b><p>A failed <code>decrypt_stream</code> may leave earlier chunks in the destination. The bytes API is atomic.</p></li>
-      </ul>
+      <div class="faq">
+        <details><summary>Why two keys instead of one?</summary><p>So that no single breach exposes your data. Keep one key on your server and give the other to your user, a KMS or a separate service. Reading a record takes both.</p></details>
+        <details><summary>What happens if one key leaks?</summary><p>Records stay sealed, because the other key still protects them. Re-encrypt under a fresh key pair at your own pace.</p></details>
+        <details><summary>Is the noise layer homemade cryptography?</summary><p>The security claim rests on AES-256-GCM and ChaCha20-Poly1305 from pyca/cryptography, both standard and widely reviewed. The noise layer adds depth on top; nothing relies on it alone.</p></details>
+        <details><summary>Is it slower than Fernet?</summary><p>Yes. Sealing a 1 KiB record takes about 27 µs, against 7 µs for Fernet, because it runs two ciphers, three key derivations and the noise layer. Next to a database write, the difference rarely shows.</p></details>
+        <details><summary>Can I use a password as a key?</summary><p>Not directly. Stretch it into 32 bytes with Argon2id first, then pass the result as <code>server_key</code> or <code>client_key</code>.</p></details>
+        <details><summary>Does it protect data in transit?</summary><p>It's built for records and files at rest. Keep using TLS on the wire.</p></details>
+        <details><summary>Does it stop replayed ciphertexts?</summary><p>Not on its own: a valid ciphertext opens every time it's presented. If you need replay protection, put a nonce or timestamp inside the plaintext and track it.</p></details>
+        <details><summary>How does it handle large files?</summary><p><code>encrypt_stream</code> and <code>decrypt_stream</code> work in 64 KiB frames, so memory stays flat at any size. If decryption fails partway, earlier frames may already be written, so write to a temporary file and rename it on success.</p></details>
+      </div>
     </div>
   </section>
 
@@ -639,7 +658,7 @@ a23crypt.decrypt(
       </div>
     </div>
   </div>
-  <footer class="wrap">MIT License. Copyright 2026 Aditya Dedhia.</footer>
+  <footer class="wrap">MIT License. &copy; 2026 <a href="https://a23.one">a23one</a>.</footer>
 </main>
 
 <script type="module">
@@ -753,13 +772,21 @@ a23crypt.decrypt(
     });
   }
 
+  const sealedArgs = () => ({ ciphertext: last.ciphertext, serverKey: keys.server, clientKey: keys.client, recordKey });
+
+  // Shows a short, readable version; the copy buttons carry the full hex.
+  function renderSnippet(plaintext) {
+    const shown = a23.uvCommand(sealedArgs(), { abbreviate: true }).split("\n");
+    $("#py").innerHTML = `<span class="prompt">$ </span>${escape(shown[0])}\n${escape(shown.slice(1).join("\n"))}<span class="out">${escape(plaintext || "(empty)")}</span>`;
+  }
+
   function seal() {
     const msg = $("#msg").value;
     last = a23.encrypt(a23.utf8(msg), { serverKey: keys.server, clientKey: keys.client, recordKey });
     $("#core-msg").textContent = msg ? `“${msg}”` : "an empty record";
     open();
     renderTruth();
-    $("#py").textContent = a23.pythonSnippet({ ciphertext: last.ciphertext, serverKey: keys.server, clientKey: keys.client, recordKey });
+    renderSnippet(a23.text(a23.decrypt(last.ciphertext, { serverKey: keys.server, clientKey: keys.client, recordKey })));
   }
 
   const RECORDS = ["invoice-2026-0041", "note-7f3a9c", "avatar-19c2", "vault-note-0417"];
@@ -802,7 +829,8 @@ a23crypt.decrypt(
     });
   }
   document.querySelectorAll("[data-copy]").forEach((b) => copyable(b, () => b.dataset.copy, "Copied"));
-  copyable($("#copy-py"), () => $("#py").textContent, "Copied Python snippet");
+  copyable($("#copy-uv"), () => a23.uvCommand(sealedArgs()), "Copied. Paste it into a terminal.");
+  copyable($("#copy-py"), () => a23.pythonSnippet(sealedArgs()), "Copied");
 
   renderKeys();
   seal();

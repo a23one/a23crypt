@@ -321,16 +321,29 @@ export function peel(sealed, { serverKey, clientKey, recordKey }) {
   return steps;
 }
 
-// Python one-liner that decrypts a ciphertext produced on the page.
-export function pythonSnippet({ ciphertext, serverKey, clientKey, recordKey }) {
+// Python script that decrypts a ciphertext produced on the page.
+// `abbreviate` shortens long hex for display; copy the full version.
+export function pythonSnippet({ ciphertext, serverKey, clientKey, recordKey }, { abbreviate = false } = {}) {
+  const h = (b) => {
+    const s = hex(b);
+    return abbreviate && s.length > 16 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s;
+  };
+  const rk = text(recordKey);
+  const rkLiteral = /^[\x20-\x7e]*$/.test(rk) && !/["\\]/.test(rk) ? `b"${rk}"` : `bytes.fromhex("${hex(recordKey)}")`;
   return [
     "import a23crypt",
     "",
+    `sealed = bytes.fromhex("${h(ciphertext)}")`,
     "print(a23crypt.decrypt(",
-    `    bytes.fromhex("${hex(ciphertext)}"),`,
-    `    server_key=bytes.fromhex("${hex(serverKey)}"),`,
-    `    client_key=bytes.fromhex("${hex(clientKey)}"),`,
-    `    record_key=bytes.fromhex("${hex(recordKey)}"),`,
+    "    sealed,",
+    `    server_key=bytes.fromhex("${h(serverKey)}"),`,
+    `    client_key=bytes.fromhex("${h(clientKey)}"),`,
+    `    record_key=${rkLiteral},`,
     ").decode())",
   ].join("\n");
+}
+
+// The same script as a terminal command that needs only uv installed.
+export function uvCommand(sealed, opts) {
+  return `uv run --python 3.14 --with a23crypt python - <<'EOF'\n${pythonSnippet(sealed, opts)}\nEOF`;
 }
